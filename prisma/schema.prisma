@@ -1,0 +1,805 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+enum UserRole {
+  super_admin
+  admin
+  compliance_officer
+  agent
+  agency
+  developer
+  buyer
+  seller
+  tenant
+  landlord
+  lawyer
+  surveyor
+  notary
+  guest
+}
+
+enum VerificationTier {
+  NONE
+  TIER1_BVN
+  TIER2_GOVT_ID
+  TIER3_NOTARY
+}
+
+enum PropertyStatus {
+  draft
+  pending
+  active
+  sold
+  rented
+  suspended
+  rejected
+  deleted
+}
+
+enum ListingType {
+  sale
+  rent
+  lease
+  shortlet
+}
+
+enum PropertyType {
+  apartment
+  house
+  duplex
+  bungalow
+  mansion
+  penthouse
+  land
+  commercial
+  office
+  warehouse
+  shop
+  shortlet
+}
+
+enum TransactionStatus {
+  initiated
+  escrow_funded
+  inspection_pending
+  inspection_passed
+  docs_verified
+  multisig_pending
+  multisig_approved
+  split_processing
+  completed
+  disputed
+  refunded
+  cancelled
+}
+
+enum EscrowStatus {
+  initiated
+  funded
+  locked
+  multisig_pending
+  release_approved
+  released
+  disputed
+  refunded
+  expired
+}
+
+enum MultiSigStatus {
+  pending
+  buyer_signed
+  seller_signed
+  platform_signed
+  fully_approved
+  rejected
+}
+
+enum SplitStatus {
+  pending
+  processing
+  completed
+  failed
+  partial
+}
+
+enum ChatMessageType {
+  text
+  image
+  document
+  system
+  redacted
+}
+
+enum DisputeStatus {
+  open
+  under_review
+  mediation
+  escalated
+  resolved_buyer
+  resolved_seller
+  resolved_platform
+  closed
+}
+
+enum AuditAction {
+  user_registered
+  user_verified
+  user_banned
+  property_listed
+  property_moderated
+  transaction_initiated
+  escrow_funded
+  multisig_signed
+  funds_split
+  funds_released
+  dispute_opened
+  dispute_resolved
+  chat_redacted
+  fraud_flagged
+  admin_action
+  compliance_review
+}
+
+// ============================================================
+// USER & IDENTITY
+// ============================================================
+model User {
+  id                    String           @id @default(cuid())
+  email                 String           @unique
+  password              String
+  firstName             String
+  lastName              String
+  phone                 String           @unique
+  role                  UserRole         @default(buyer)
+  verificationTier      VerificationTier @default(NONE)
+  isActive              Boolean          @default(true)
+  isVerified            Boolean          @default(false)
+  isBanned              Boolean          @default(false)
+  banReason             String?
+  bannedAt              DateTime?
+  bannedBy              String?
+
+  // Tier 1 — BVN
+  bvnVerified           Boolean          @default(false)
+  bvnHash               String?          // Hashed, never stored raw
+
+  // Tier 2 — Government ID
+  ninVerified           Boolean          @default(false)
+  ninHash               String?
+  govtIdType            String?
+  govtIdVerified        Boolean          @default(false)
+  govtIdUrl             String?
+  smileJobId            String?
+
+  // Tier 3 — Notary
+  notaryVerified        Boolean          @default(false)
+  notaryDocUrl          String?
+  notaryVerifiedAt      DateTime?
+  notaryVerifiedBy      String?
+
+  // Phone
+  phoneVerified         Boolean          @default(false)
+
+  // Paystack payout
+  paystackRecipientCode String?
+  bankAccountName       String?
+  bankAccountNumber     String?
+  bankCode              String?
+
+  // Fraud score
+  fraudScore            Int              @default(0)
+  fraudFlags            String[]         @default([])
+
+  lastLoginAt           DateTime?
+  lastLoginIp           String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  // Relations
+  profile               UserProfile?
+  properties            Property[]
+  buyTransactions       Transaction[]    @relation("buyer")
+  sellTransactions      Transaction[]    @relation("seller")
+  favorites             Favorite[]
+  notifications         Notification[]
+  supportTickets        SupportTicket[]
+  otps                  Otp[]
+  passwordResets        PasswordReset[]
+  legalAcceptances      LegalAcceptance[]
+  chatParticipants      ChatParticipant[]
+  multiSigSignatures    MultiSigSignature[]
+  auditLogs             AuditLog[]       @relation("auditUser")
+  sentMessages          ChatMessage[]    @relation("messageSender")
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@index([verificationTier])
+  @@map("users")
+}
+
+model UserProfile {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  displayName  String
+  bio          String?
+  avatar       String?
+  state        String?
+  lga          String?
+  address      String?
+  website      String?
+  linkedinUrl  String?
+  cacNumber    String?
+  licenseNumber String?
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Otp {
+  id        String    @id @default(cuid())
+  userId    String
+  otp       String
+  type      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otps")
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_resets")
+}
+
+// ============================================================
+// PROPERTY
+// ============================================================
+model Property {
+  id                String         @id @default(cuid())
+  title             String
+  description       String         @db.Text
+  price             Float
+  propertyType      PropertyType
+  listingType       ListingType
+  status            PropertyStatus @default(pending)
+  state             String
+  lga               String
+  address           String
+  landmark          String?
+  bedrooms          Int?
+  bathrooms         Int?
+  toilets           Int?
+  size              Float?
+  sizeUnit          String?        @default("sqm")
+  amenities         String[]       @default([])
+  latitude          Float?
+  longitude         Float?
+  isFeatured        Boolean        @default(false)
+  isVerified        Boolean        @default(false)
+  titleDocVerified  Boolean        @default(false)
+  moderationStatus  String         @default("review_required")
+  moderationData    Json?
+  moderationScore   Int?
+  moderatedBy       String?
+  moderatedAt       DateTime?
+  moderationReason  String?
+  viewCount         Int            @default(0)
+  ownerId           String
+  deletedAt         DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  owner        User               @relation(fields: [ownerId], references: [id])
+  images       PropertyImage[]
+  documents    PropertyDocument[]
+  transactions Transaction[]
+  views        PropertyView[]
+  favorites    Favorite[]
+  escrows      Escrow[]
+  splitEscrows SplitEscrow[]
+
+  @@index([state, status])
+  @@index([listingType, status])
+  @@index([propertyType, status])
+  @@index([price])
+  @@index([ownerId])
+  @@index([isFeatured])
+  @@map("properties")
+}
+
+model PropertyImage {
+  id         String   @id @default(cuid())
+  propertyId String
+  url        String
+  isPrimary  Boolean  @default(false)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@map("property_images")
+}
+
+model PropertyDocument {
+  id           String   @id @default(cuid())
+  propertyId   String
+  name         String
+  url          String
+  documentType String   // C_of_O, survey_plan, deed_of_assignment, etc.
+  isPublic     Boolean  @default(false)
+  isVerified   Boolean  @default(false)
+  verifiedBy   String?
+  verifiedAt   DateTime?
+  createdAt    DateTime @default(now())
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@map("property_documents")
+}
+
+model PropertyView {
+  id         String   @id @default(cuid())
+  propertyId String
+  userId     String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@map("property_views")
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  propertyId String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, propertyId])
+  @@map("favorites")
+}
+
+// ============================================================
+// TRANSACTIONS — MASTER RECORD
+// ============================================================
+model Transaction {
+  id               String            @id @default(cuid())
+  propertyId       String
+  buyerId          String
+  sellerId         String
+  agentId          String?
+  amount           Float
+  type             String
+  status           TransactionStatus @default(initiated)
+  paymentPlan      String            @default("full")
+  paymentReference String?
+  paidAt           DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String?
+  metadata         Json?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  property       Property        @relation(fields: [propertyId], references: [id])
+  buyer          User            @relation("buyer", fields: [buyerId], references: [id])
+  seller         User            @relation("seller", fields: [sellerId], references: [id])
+  escrow         Escrow?
+  splitEscrow    SplitEscrow?
+  documents      LegalDocument[]
+  auditLogs      AuditLog[]
+  chatRoom       ChatRoom?
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([propertyId])
+  @@index([status])
+  @@map("transactions")
+}
+
+// ============================================================
+// ESCROW — MULTI-SIG VAULT
+// ============================================================
+model Escrow {
+  id                  String       @id @default(cuid())
+  transactionId       String       @unique
+  buyerId             String
+  sellerId            String
+  propertyId          String
+  agentId             String?
+
+  // Financial amounts
+  totalDeposited      Float        @default(0)
+  platformFee         Float        @default(0)  // 5%
+  agentCommission     Float        @default(0)  // 10%
+  vatAmount           Float        @default(0)  // 7.5%
+  whtAmount           Float        @default(0)  // WHT
+  netSellerAmount     Float        @default(0)  // Remaining to seller
+
+  // Status
+  status              EscrowStatus @default(initiated)
+  multiSigStatus      MultiSigStatus @default(pending)
+
+  // Payment details
+  paymentReference    String?
+  paystackAuthCode    String?
+  fundedAt            DateTime?
+
+  // Inspection
+  inspectionPassed    Boolean?
+  inspectionDate      DateTime?
+  inspectionNotes     String?
+
+  // Documents
+  docsVerified        Boolean      @default(false)
+  docsVerifiedAt      DateTime?
+  docsVerifiedBy      String?
+
+  // Release
+  releaseRequestedAt  DateTime?
+  releasedAt          DateTime?
+  releasedBy          String?
+  payoutReference     String?
+
+  // Refund
+  refundedAt          DateTime?
+  refundedBy          String?
+  refundReason        String?
+  refundReference     String?
+
+  // Dispute
+  disputeId           String?
+
+  // Timeline & metadata
+  timeline            Json?
+  expiresAt           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  transaction         Transaction  @relation(fields: [transactionId], references: [id])
+  property            Property     @relation(fields: [propertyId], references: [id])
+  buyer               User         @relation(fields: [buyerId], references: [id])
+  seller              User         @relation(fields: [sellerId], references: [id])
+  multiSigSignatures  MultiSigSignature[]
+  splitReceipts       SplitReceipt[]
+  disputes            Dispute[]
+
+  @@index([status])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@map("escrows")
+}
+
+// ============================================================
+// MULTI-SIG SIGNATURES
+// ============================================================
+model MultiSigSignature {
+  id            String   @id @default(cuid())
+  escrowId      String
+  signerId      String
+  signerRole    String   // buyer | seller | platform_legal | notary
+  signedAt      DateTime @default(now())
+  signatureHash String   // cryptographic hash of the signed payload
+  ipAddress     String?
+  userAgent     String?
+  metadata      Json?
+
+  escrow        Escrow   @relation(fields: [escrowId], references: [id])
+  signer        User     @relation(fields: [signerId], references: [id])
+
+  @@unique([escrowId, signerRole])
+  @@index([escrowId])
+  @@map("multisig_signatures")
+}
+
+// ============================================================
+// SPLIT RECEIPTS — AUTOMATED FUND DISTRIBUTION
+// ============================================================
+model SplitReceipt {
+  id                  String     @id @default(cuid())
+  escrowId            String
+  transactionId       String?
+  totalAmount         Float
+
+  // Distribution breakdown
+  platformFee         Float      // 5%
+  platformFeeRef      String?
+  agentCommission     Float      // 10%
+  agentCommissionRef  String?
+  vatAmount           Float      // 7.5%
+  vatRef              String?
+  whtAmount           Float      // WHT
+  whtRef              String?
+  netSellerAmount     Float      // remainder
+  netSellerRef        String?
+
+  // Status
+  status              SplitStatus @default(pending)
+  processedAt         DateTime?
+  failureReason       String?
+  retryCount          Int         @default(0)
+
+  // Vault references
+  platformVaultId     String?
+  taxVaultId          String?
+
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  escrow              Escrow      @relation(fields: [escrowId], references: [id])
+
+  @@index([escrowId])
+  @@index([status])
+  @@map("split_receipts")
+}
+
+// ============================================================
+// SPLIT ESCROW (INSTALLMENT PAYMENTS)
+// ============================================================
+model SplitEscrow {
+  id                String    @id @default(cuid())
+  transactionId     String?   @unique
+  propertyId        String
+  buyerId           String
+  sellerId          String
+  totalAmount       Float
+  downPayment       Float
+  balance           Float
+  installmentAmount Float
+  totalInstallments Int
+  paidInstallments  Int       @default(0)
+  schedule          Json
+  status            String    @default("active")
+  intervalDays      Int       @default(30)
+  nextDueDate       DateTime?
+  completedAt       DateTime?
+  defaultedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  property    Property     @relation(fields: [propertyId], references: [id])
+  buyer       User         @relation(fields: [buyerId], references: [id])
+  seller      User         @relation(fields: [sellerId], references: [id])
+
+  @@map("split_escrows")
+}
+
+// ============================================================
+// VAULTS (Platform & Tax Holding Accounts)
+// ============================================================
+model Vault {
+  id            String   @id @default(cuid())
+  name          String   @unique // platform_fee | agent_commission | vat_pool | wht_pool
+  balance       Float    @default(0)
+  totalIn       Float    @default(0)
+  totalOut      Float    @default(0)
+  currency      String   @default("NGN")
+  lastUpdatedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  transactions  VaultTransaction[]
+
+  @@map("vaults")
+}
+
+model VaultTransaction {
+  id          String   @id @default(cuid())
+  vaultId     String
+  amount      Float
+  type        String   // credit | debit
+  reference   String?
+  description String?
+  sourceId    String?  // escrowId or splitReceiptId
+  createdAt   DateTime @default(now())
+
+  vault       Vault    @relation(fields: [vaultId], references: [id])
+
+  @@index([vaultId])
+  @@map("vault_transactions")
+}
+
+// ============================================================
+// CHAT — CLOSED-LOOP SECURE MESSAGING
+// ============================================================
+model ChatRoom {
+  id            String    @id @default(cuid())
+  transactionId String?   @unique
+  name          String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  transaction   Transaction?    @relation(fields: [transactionId], references: [id])
+  participants  ChatParticipant[]
+  messages      ChatMessage[]
+
+  @@map("chat_rooms")
+}
+
+model ChatParticipant {
+  id         String   @id @default(cuid())
+  roomId     String
+  userId     String
+  joinedAt   DateTime @default(now())
+  lastReadAt DateTime?
+
+  room       ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, userId])
+  @@map("chat_participants")
+}
+
+model ChatMessage {
+  id              String          @id @default(cuid())
+  roomId          String
+  senderId        String
+  content         String          @db.Text
+  originalContent String?         @db.Text // preserved before redaction
+  messageType     ChatMessageType @default(text)
+  isRedacted      Boolean         @default(false)
+  redactedAt      DateTime?
+  redactedReason  String?
+  redactedBy      String?         // system | admin_id
+  fileUrl         String?
+  fileName        String?
+  isRead          Boolean         @default(false)
+  readAt          DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  room            ChatRoom        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender          User            @relation("messageSender", fields: [senderId], references: [id])
+
+  @@index([roomId])
+  @@index([senderId])
+  @@map("chat_messages")
+}
+
+// ============================================================
+// LEGAL & COMPLIANCE
+// ============================================================
+model LegalAcceptance {
+  id           String   @id @default(cuid())
+  userId       String
+  documentType String
+  version      String
+  acceptedAt   DateTime
+  ipAddress    String?
+  userAgent    String?
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@map("legal_acceptances")
+}
+
+model LegalDocument {
+  id              String   @id @default(cuid())
+  transactionId   String
+  type            String   // property_agreement | deed_of_assignment | tenancy_agreement
+  content         String   @db.Text
+  version         String
+  status          String   @default("draft")
+  signedByBuyer   Boolean  @default(false)
+  buyerSignedAt   DateTime?
+  buyerSignHash   String?
+  signedBySeller  Boolean  @default(false)
+  sellerSignedAt  DateTime?
+  sellerSignHash  String?
+  signedByNotary  Boolean  @default(false)
+  notarySignedAt  DateTime?
+  createdAt       DateTime @default(now())
+  transaction     Transaction @relation(fields: [transactionId], references: [id])
+
+  @@map("legal_documents")
+}
+
+// ============================================================
+// DISPUTES
+// ============================================================
+model Dispute {
+  id           String        @id @default(cuid())
+  escrowId     String
+  initiatedBy  String
+  respondentId String?
+  reason       String        @db.Text
+  evidence     Json          @default("[]")
+  status       DisputeStatus @default(open)
+  assignedTo   String?
+  resolution   String?       @db.Text
+  resolvedBy   String?
+  resolvedAt   DateTime?
+  timeline     Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  escrow       Escrow        @relation(fields: [escrowId], references: [id])
+
+  @@index([status])
+  @@map("disputes")
+}
+
+// ============================================================
+// AUDIT LOG — IMMUTABLE EVENT TRAIL
+// ============================================================
+model AuditLog {
+  id            String      @id @default(cuid())
+  action        AuditAction
+  userId        String?
+  transactionId String?
+  resourceType  String?
+  resourceId    String?
+  description   String
+  metadata      Json?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime    @default(now())
+
+  user          User?        @relation("auditUser", fields: [userId], references: [id])
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  @@index([action])
+  @@index([userId])
+  @@index([transactionId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================================
+// NOTIFICATIONS & SUPPORT
+// ============================================================
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String    @default("info")
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  data      Json?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model SupportTicket {
+  id           String   @id @default(cuid())
+  userId       String
+  ticketNumber String   @unique
+  subject      String
+  message      String   @db.Text
+  category     String   @default("general")
+  priority     String   @default("normal")
+  status       String   @default("open")
+  assignedTo   String?
+  resolution   String?
+  resolvedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@map("support_tickets")
+}
