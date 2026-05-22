@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const config = {
   app: {
-    name: process.env.APP_NAME || 'VeriPro Nigeria',
+    name: process.env.APP_NAME || 'VeriProp Nigeria',
     url: process.env.APP_URL || 'https://veripronigeria.com',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
     port: parseInt(process.env.PORT) || 5000,
@@ -39,7 +39,7 @@ const config = {
     port: parseInt(process.env.SMTP_PORT) || 587,
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
-    from: process.env.EMAIL_FROM || 'VeriPro Nigeria <noreply@veripronigeria.com>',
+    from: process.env.EMAIL_FROM || 'VeriProp Nigeria <noreply@veripronigeria.com>',
   },
 
   sms: {
@@ -72,9 +72,7 @@ const config = {
   },
 
   verification: {
-    nibss: {
-      apiKey: process.env.NIBSS_API_KEY,
-    },
+    nibss: { apiKey: process.env.NIBSS_API_KEY },
     smileIdentity: {
       apiKey: process.env.SMILE_IDENTITY_API_KEY,
       partnerId: process.env.SMILE_IDENTITY_PARTNER_ID,
@@ -85,10 +83,60 @@ const config = {
     },
   },
 
+  // ============================================================
+  // MULTI-PROVIDER AI CONFIGURATION
+  // Priority: qwen → deepseek → groq → gemini → local
+  // ============================================================
   ai: {
-    openai: {
-      apiKey: process.env.OPENAI_API_KEY,
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+    // Set this to your preferred provider
+    // Options: qwen | deepseek | groq | gemini | local
+    provider: process.env.AI_PROVIDER || 'local',
+
+    // ── QWEN (Alibaba) ─────────────────────────────
+    // FREE forever with high rate limits
+    // Get key: dashscope.aliyuncs.com
+    // Best for: High volume, cost-zero operation
+    qwen: {
+      apiKey: process.env.QWEN_API_KEY,
+      model: process.env.QWEN_MODEL || 'qwen-plus',
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    },
+
+    // ── DEEPSEEK ───────────────────────────────────
+    // $5 free credit on signup, then $0.0001/1k tokens
+    // Get key: platform.deepseek.com
+    // Best for: Best reasoning quality, lowest cost at scale
+    deepseek: {
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+      baseUrl: 'https://api.deepseek.com',
+    },
+
+    // ── GROQ ───────────────────────────────────────
+    // FREE forever with very fast inference
+    // Get key: console.groq.com
+    // Best for: Speed-critical moderation, real-time chat
+    groq: {
+      apiKey: process.env.GROQ_API_KEY,
+      model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+      baseUrl: 'https://api.groq.com/openai/v1',
+    },
+
+    // ── GEMINI (Google) ────────────────────────────
+    // FREE with rate limits (15 req/min free tier)
+    // Get key: aistudio.google.com
+    // Best for: Multimodal (image moderation future)
+    gemini: {
+      apiKey: process.env.GEMINI_API_KEY,
+      model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+    },
+
+    // ── LOCAL (Regex only) ─────────────────────────
+    // Always FREE, always available
+    // No API key needed
+    // Best for: Launch phase, zero-cost baseline
+    local: {
+      enabled: true,
     },
   },
 
@@ -122,18 +170,26 @@ const config = {
   },
 };
 
-// Validate critical config in production
+// ============================================================
+// STARTUP VALIDATION
+// Only truly critical vars — AI keys are optional
+// ============================================================
 if (config.app.isProduction) {
-  const required = [
-    'DATABASE_URL',
-    'JWT_SECRET',
-    'PAYSTACK_SECRET_KEY',
-    'OPENAI_API_KEY',
-  ];
+  const required = ['DATABASE_URL', 'JWT_SECRET'];
   const missing = required.filter(key => !process.env[key]);
   if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    throw new Error(`Missing critical environment variables: ${missing.join(', ')}`);
   }
+
+  // Warn about optional but recommended vars (no crash)
+  const recommended = ['PAYSTACK_SECRET_KEY', 'CLOUDINARY_CLOUD_NAME'];
+  const missingRec = recommended.filter(key => !process.env[key]);
+  if (missingRec.length > 0) {
+    console.warn(`[CONFIG] ⚠️  Recommended vars not set: ${missingRec.join(', ')}`);
+  }
+
+  // Log which AI provider is active
+  console.log(`[CONFIG] 🤖 AI Provider: ${config.ai.provider.toUpperCase()}`);
 }
 
 module.exports = config;
