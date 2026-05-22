@@ -1,17 +1,18 @@
 FROM node:20-alpine
 
-# Fix OpenSSL for Prisma on Alpine
 RUN apk add --no-cache openssl openssl-dev libc6-compat
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production
+
+RUN npm install
 
 COPY . .
 
-# Generate Prisma with correct binary target
 RUN npx prisma generate
+
+RUN npm prune --production
 
 EXPOSE 5000
 
