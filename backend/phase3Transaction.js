@@ -4,7 +4,7 @@ const express = require('express');
 const axios = require('axios');
 const db = require('./db');
 const config = require('./config');
-const { authenticateToken, requireRole, ROLES } = require('./roleAuth');
+const { requireAuth: authenticateToken, requireRole, requireTier, requireAdmin } = require('./middleware/requireAuth');
 const { initiateEscrow, fundEscrow, requestRelease, releaseEscrow, initiateDispute } = require('./escrowEngine');
 const { createSplitPlan, recordInstallment } = require('./splitEscrowEngine');
 
