@@ -98,22 +98,23 @@ app.get('/api/v1/ops/health', async (req, res) => {
   const dbHealth = await healthCheck();
   const uptime = process.uptime();
 
+  // ✅ PII MASKING: Only booleans exposed — no keys, no URLs, no internal data
+  const isHealthy = dbHealth.status === 'healthy';
   res.json({
-    status: dbHealth.status === 'healthy' ? 'ok' : 'degraded',
+    status: isHealthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: `${Math.floor(uptime / 60)}m ${Math.floor(uptime % 60)}s`,
     version: '2.0.0',
-    environment: config.app.env,
     domains: {
-      database: dbHealth.status === 'healthy',
-      payments: !!config.payments?.paystack?.secretKey,
-      ai_moderation: !!config.ai?.openai?.apiKey,
-      sms: !!config.sms?.termii?.apiKey,
-      email: !!config.email?.user,
-      cloudinary: !!config.cloudinary?.cloudName,
-      maps: !!config.maps?.googleApiKey,
+      database: isHealthy,                                  // boolean only
+      payments: !!config.payments?.paystack?.secretKey,     // boolean only
+      ai_moderation: !!config.ai?.openai?.apiKey,           // boolean only
+      sms: !!config.sms?.termii?.apiKey,                    // boolean only
+      email: !!config.email?.user,                          // boolean only
+      storage: !!config.cloudinary?.cloudName,              // boolean only
+      maps: !!config.maps?.googleApiKey,                    // boolean only
     },
-    // No secrets, no internal IPs, no stack traces
+    // Raw values, keys, IPs, stack traces: NEVER exposed
   });
 });
 
@@ -230,7 +231,7 @@ const startServer = async () => {
     // Initialize vaults on startup
     initializeVaults().catch(e => console.warn('[VAULT] Init warning:', e.message));
 
-    const server = app.listen(config.app.port, () => {
+    const server = app.listen(config.app.port, "0.0.0.0", () => {
       console.log(`
 🚀 ============================================
    VeriProp Nigeria API — v2.0.0
