@@ -14,8 +14,20 @@ const agentRouter = express.Router();
 // PROPERTY ROUTES
 // ============================================
 
+// ============================================================
+// LOW-DATA MODE MIDDLEWARE
+// ✅ AUDIT GAP 2 FIX: Returns text-first optimised payload
+// when X-Low-Data: true header is present
+// ============================================================
+const lowDataMode = (req, res, next) => {
+  req.isLowData = req.headers['x-low-data'] === 'true' ||
+                  req.query.lowdata === '1' ||
+                  req.query.low_data === 'true';
+  next();
+};
+
 // Get all properties (public)
-propertyRouter.get('/', optionalAuth, async (req, res) => {
+propertyRouter.get('/', optionalAuth, lowDataMode, async (req, res) => {
   try {
     const {
       page = 1, limit = 20, type, listingType, state, lga,
@@ -55,6 +67,29 @@ propertyRouter.get('/', optionalAuth, async (req, res) => {
       }),
       db.property.count({ where }),
     ]);
+
+    // LOW-DATA MODE: strip images, trim fields, reduce payload ~70%
+    if (req.isLowData) {
+      const slimProperties = properties.map(p => ({
+        id: p.id,
+        title: p.title,
+        price: p.price,
+        listingType: p.listingType,
+        propertyType: p.propertyType,
+        state: p.state,
+        lga: p.lga,
+        bedrooms: p.bedrooms,
+        bathrooms: p.bathrooms,
+        isVerified: p.isVerified,
+        isFeatured: p.isFeatured,
+      }));
+      return res.json({
+        success: true,
+        mode: 'low-data',
+        data: slimProperties,
+        pagination: { total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) },
+      });
+    }
 
     res.json({
       success: true,
