@@ -117,8 +117,19 @@ authRouter.post('/login', [
 
     await db.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), lastLoginIp: req.ip },
     });
+
+    // 🔒 SESSION LOG — immutable auth trail
+    db.sessionLog.create({
+      data: {
+        userId: user.id,
+        event: 'login',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        success: true,
+      },
+    }).catch(console.error);
 
     res.json({
       success: true,
