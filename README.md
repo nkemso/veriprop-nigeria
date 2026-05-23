@@ -1,37 +1,76 @@
-# 🏛️ VeriProp Nigeria: Nigeria's Most Trusted Property Marketplace
+# 🏠 VeriProp Nigeria
 
-VeriProp is a high-trust, institutional-grade property ecosystem designed specifically for the Nigerian real estate market. It solves the fragmentation and trust deficit in local property transactions through a secure, closed-loop platform featuring multi-sig escrow, AI-driven fraud detection, and verified user tiers.
+**Nigeria's Most Trusted Property Marketplace**
 
-## 🌟 Vision
-To empower Nigerians and institutional investors with a transparent, secure, and resilient platform where every listing is verified and every transaction is protected by cryptographic and legal safeguards.
+A zero-trust, high-security property ecosystem built for the Nigerian market.
 
-## 🔒 Core Security Pillars
-- **Verified Identity:** Mandatory Tier 1-3 verification (BVN, Government ID, and Notary Handshakes).
-- **Closed-Loop Communication:** VetPro AI monitors and redacts external contact sharing to prevent off-platform fraud.
-- **Multi-Sig Escrow:** Funds are held in secure vaults and released only upon multi-party authorization (Buyer + Seller + Platform/Legal).
-- **Automated Payment Splitting:** Instant, transparent disbursement of platform fees, agent commissions, and taxes.
+## 🔐 Core Security Pillars
 
-## 🚀 Key Features
-- **VetPro AI Assistant:** Contextual AI concierge for seekers and strategic advisors for agents.
-- **Marketplace Analytics:** Institutional-grade data on property appreciation, volume, and neighborhood trends.
-- **Dispute Resolution Center:** A structured mediation hub for managing claims with transparent evidence submission.
-- **Low-Data Resilience Mode:** Optimized, text-first experience for users in low-bandwidth environments.
-- **Legal Professional Dashboard:** Dedicated tools for lawyers to conduct document reviews and notary verifications.
+- **3-Tier Identity Verification** — BVN, Government ID, Notary
+- **Closed-Loop Communications** — AI redaction prevents off-platform contact
+- **Multi-Sig Escrow** — Funds released only with 2+ authorized signatures
+- **Automated Fund Splitting** — 5% platform fee, 10% agent commission, 7.5% VAT, WHT
 
-## 🛠️ Technical Stack
-- **Frontend:** React / Next.js (Tailwind CSS)
-- **Backend:** Node.js (Express) or Python (FastAPI)
-- **Database:** PostgreSQL (Prisma ORM)
-- **Authentication:** MFA with Nigerian-specific identity verification (NIBSS/BVN).
-- **Infrastructure:** Dockerized deployment for Vercel, Railway, or AWS.
+## 🛠️ Tech Stack
 
-## 📂 Project Structure
-The project is organized into five build phases:
-1. **Phase 1: Identity & Foundation** (Trust Layer)
-2. **Phase 2: Marketplace Discovery** (Search & Maps)
-3. **Phase 3: Transaction & Escrow** (Payments & Contracts)
-4. **Phase 4: Management & Dashboards** (Institutional Operations)
-5. **Phase 5: Support & Resilience** (Disputes & Compliance)
+| Layer | Technology |
+|-------|-----------|
+| Backend | Node.js + Express |
+| Database | PostgreSQL + Prisma ORM |
+| Cache | Redis |
+| Auth | JWT + Refresh Tokens |
+| Payments | Paystack |
+| AI | Qwen / DeepSeek / Groq / Gemini (configurable) |
+| Deployment | Railway (backend) + Vercel (frontend) |
+
+## 🚀 Deployment
+
+### Backend (Railway)
+```bash
+# Set these variables in Railway dashboard
+DATABASE_URL = ${{Postgres.DATABASE_URL}}
+DIRECT_URL   = ${{Postgres.DATABASE_URL}}
+REDIS_URL    = ${{Redis.REDIS_URL}}
+JWT_SECRET   = your-secret-key
+AI_PROVIDER  = groq
+GROQ_API_KEY = gsk_...
+PAYSTACK_SECRET_KEY = sk_live_...
+```
+
+### Start Command
+```bash
+npx prisma migrate deploy && node backend/server.js
+```
+
+## 📡 API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/ops/health` | Health check |
+| POST | `/api/v1/auth/register` | Register user |
+| POST | `/api/v1/auth/login` | Login |
+| GET | `/api/v1/properties` | Browse properties |
+| POST | `/api/v1/transactions` | Start transaction |
+| POST | `/api/v1/escrow/:id/release` | Release escrow |
+
+## 🤖 AI Providers (Switch Anytime)
+
+```
+AI_PROVIDER = groq      # Free forever, fastest
+AI_PROVIDER = qwen      # Free forever, high volume
+AI_PROVIDER = deepseek  # Ultra cheap, best quality
+AI_PROVIDER = gemini    # Free limited tier
+AI_PROVIDER = local     # Regex only, zero cost
+```
+
+## 📋 Phases
+
+- **Phase 1** — Identity & Foundation ✅
+- **Phase 2** — Marketplace Discovery ✅
+- **Phase 3** — Transaction & Escrow ✅
+- **Phase 4** — Admin & Operations ✅
+- **Phase 5** — Analytics & Scale ✅
 
 ---
-*© 2024 VeriProp Nigeria. Licensed Escrow Agent.*
+
+Built with ❤️ for Nigeria 🇳🇬
