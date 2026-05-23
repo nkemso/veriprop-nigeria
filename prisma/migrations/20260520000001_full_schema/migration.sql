@@ -285,3 +285,22 @@ INSERT INTO "vaults" ("id","name","balance","totalIn","totalOut") VALUES
   (gen_random_uuid()::text,'agent_commission',0,0,0),
   (gen_random_uuid()::text,'vat_pool',0,0,0),
   (gen_random_uuid()::text,'wht_pool',0,0,0);
+
+-- SessionLog table (AUDIT GAP 4 FIX)
+CREATE TABLE "session_logs" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "userId" TEXT NOT NULL REFERENCES "users"("id"),
+  "event" TEXT NOT NULL,
+  "ipAddress" TEXT,
+  "userAgent" TEXT,
+  "country" TEXT,
+  "city" TEXT,
+  "deviceType" TEXT,
+  "success" BOOLEAN NOT NULL DEFAULT true,
+  "failReason" TEXT,
+  "sessionToken" TEXT,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX "session_logs_userId_idx" ON "session_logs"("userId");
+CREATE INDEX "session_logs_event_idx" ON "session_logs"("event");
+CREATE INDEX "session_logs_createdAt_idx" ON "session_logs"("createdAt");
