@@ -1,77 +1,81 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-
+/**
+ * DB INIT — Fixes column types and ensures all tables exist
+ * Converts ENUM columns to TEXT for Prisma String compatibility
+ */
 const initDatabase = async (db) => {
   try {
-    console.log('[DB INIT] Checking if database needs initialization...');
+    console.log('[DB INIT] Running database initialization...');
+
+    // Fix ENUM columns that may exist from old migration
+    // Convert all ENUM type columns to TEXT
+    const enumFixes = [
+      // Users table
+      `ALTER TABLE "users" ALTER COLUMN "role" TYPE TEXT`,
+      `ALTER TABLE "users" ALTER COLUMN "verificationTier" TYPE TEXT`,
+      // Properties
+      `ALTER TABLE "properties" ALTER COLUMN "propertyType" TYPE TEXT`,
+      `ALTER TABLE "properties" ALTER COLUMN "listingType" TYPE TEXT`,
+      `ALTER TABLE "properties" ALTER COLUMN "status" TYPE TEXT`,
+      // Transactions
+      `ALTER TABLE "transactions" ALTER COLUMN "status" TYPE TEXT`,
+      // Escrow
+      `ALTER TABLE "escrows" ALTER COLUMN "status" TYPE TEXT`,
+      `ALTER TABLE "escrows" ALTER COLUMN "multiSigStatus" TYPE TEXT`,
+      // Others
+      `ALTER TABLE "split_receipts" ALTER COLUMN "status" TYPE TEXT`,
+      `ALTER TABLE "chat_messages" ALTER COLUMN "messageType" TYPE TEXT`,
+      `ALTER TABLE "disputes" ALTER COLUMN "status" TYPE TEXT`,
+      `ALTER TABLE "audit_logs" ALTER COLUMN "action" TYPE TEXT`,
+    ];
+
+    let fixed = 0;
+    for (const sql of enumFixes) {
+      try {
+        await db.$executeRawUnsafe(sql);
+        fixed++;
+      } catch (e) {
+        // Ignore - column might already be TEXT or table might not exist
+      }
+    }
     
-    // Check if users table exists
+    if (fixed > 0) {
+      console.log(`[DB INIT] ✅ Fixed ${fixed} ENUM columns to TEXT`);
+    }
+
+    // Ensure all tables exist
     const tables = await db.$queryRaw`
       SELECT table_name FROM information_schema.tables 
       WHERE table_schema = 'public' AND table_name = 'users'
     `;
-    
-    if (tables.length > 0) {
-      console.log('[DB INIT] ✅ Database already initialized');
-      return;
-    }
-    
-    console.log('[DB INIT] Running initial schema creation...');
-    
-    // Read migration SQL
-    const sqlFile = path.join(__dirname, '../prisma/migrations/20260520000001_full_schema/migration.sql');
-    let sql = fs.readFileSync(sqlFile, 'utf8');
-    
-    // Split into individual statements and run each
-    const statements = sql
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
-    
-    let success = 0;
-    let failed = 0;
-    
-    for (const stmt of statements) {
-      try {
-        await db.$executeRawUnsafe(stmt + ';');
-        success++;
-      } catch (e) {
-        // Ignore "already exists" errors
-        if (!e.message.includes('already exists') && !e.message.includes('duplicate')) {
-          console.warn('[DB INIT] Statement warning:', e.message.substring(0, 80));
-          failed++;
+
+    if (tables.length === 0) {
+      console.log('[DB INIT] Creating tables from migration SQL...');
+      const fs = require('fs');
+      const path = require('path');
+      const sqlFile = path.join(__dirname, '../prisma/migrations/20260520000001_full_schema/migration.sql');
+      const sql = fs.readFileSync(sqlFile, 'utf8');
+      
+      const statements = sql.split(';')
+        .map(s => s.trim())
+        .filter(s => s.length > 5 && !s.startsWith('--'));
+      
+      for (const stmt of statements) {
+        try {
+          await db.$executeRawUnsafe(stmt + ';');
+        } catch (e) {
+          if (!e.message.includes('already exists')) {
+            console.warn('[DB INIT] Warning:', e.message.substring(0, 60));
+          }
         }
       }
+      console.log('[DB INIT] ✅ Tables created');
     }
-    
-    console.log(`[DB INIT] ✅ Schema created: ${success} statements OK, ${failed} warnings`);
-    
-    // Mark migration as done in prisma migrations table
-    try {
-      await db.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
-          id VARCHAR(36) NOT NULL,
-          checksum VARCHAR(64) NOT NULL,
-          finished_at TIMESTAMPTZ,
-          migration_name VARCHAR(255) NOT NULL,
-          logs TEXT,
-          rolled_back_at TIMESTAMPTZ,
-          started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-          applied_steps_count INTEGER NOT NULL DEFAULT 0,
-          PRIMARY KEY (id)
-        );
-      `);
-      await db.$executeRawUnsafe(`
-        INSERT INTO "_prisma_migrations" (id, checksum, finished_at, migration_name, applied_steps_count)
-        VALUES ('1', 'manual', NOW(), '20260520000001_full_schema', 1)
-        ON CONFLICT DO NOTHING;
-      `);
-    } catch(e) { /* ignore */ }
-    
+
+    console.log('[DB INIT] ✅ Database ready');
   } catch (error) {
-    console.error('[DB INIT] Error:', error.message);
+    console.error('[DB INIT] Error:', error.message.substring(0, 100));
   }
 };
 
