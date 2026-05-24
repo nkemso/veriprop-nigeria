@@ -252,10 +252,12 @@ const startServer = async () => {
       `);
     });
 
-    // Run migrations then connect DB
-    await runMigrations();
+    // Connect DB then initialize schema if needed
     try {
       await connect();
+      const { initDatabase } = require('./dbInit');
+      const db = require('./db');
+      await initDatabase(db);
       initializeVaults().catch(e => console.warn('[VAULT] Init warning:', e.message));
     } catch (dbError) {
       console.error('[DB] Connection failed - retrying in 5s:', dbError.message);
