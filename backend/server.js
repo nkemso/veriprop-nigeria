@@ -92,6 +92,10 @@ app.use((req, res, next) => {
 });
 
 // ============================================================
+// Simple ping - no DB needed - for Railway healthcheck
+app.get('/ping', (req, res) => res.json({ ok: true }));
+app.get('/health', (req, res) => res.json({ status: 'ok', app: 'VeriProp Nigeria' }));
+
 // /api/v1/ops/health — Diagnostics (NO secrets exposed)
 // ============================================================
 app.get('/api/v1/ops/health', async (req, res) => {
