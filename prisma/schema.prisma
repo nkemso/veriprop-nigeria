@@ -33,6 +33,8 @@ model User {
   notaryVerified        Boolean   @default(false)
   notaryDocUrl          String?
   notaryVerifiedAt      DateTime?
+  notaryVerifiedBy      String?
+  smileJobId            String?
   phoneVerified         Boolean   @default(false)
   paystackRecipientCode String?
   bankAccountName       String?
