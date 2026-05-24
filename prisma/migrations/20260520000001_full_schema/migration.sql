@@ -2,18 +2,6 @@
 -- Multi-Sig + Split Payment + Audit + Chat
 
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('super_admin','admin','compliance_officer','agent','agency','developer','buyer','seller','tenant','landlord','lawyer','surveyor','notary','guest');
-CREATE TYPE "VerificationTier" AS ENUM ('NONE','TIER1_BVN','TIER2_GOVT_ID','TIER3_NOTARY');
-CREATE TYPE "PropertyStatus" AS ENUM ('draft','pending','active','sold','rented','suspended','rejected','deleted');
-CREATE TYPE "ListingType" AS ENUM ('sale','rent','lease','shortlet');
-CREATE TYPE "PropertyType" AS ENUM ('apartment','house','duplex','bungalow','mansion','penthouse','land','commercial','office','warehouse','shop','shortlet');
-CREATE TYPE "TransactionStatus" AS ENUM ('initiated','escrow_funded','inspection_pending','inspection_passed','docs_verified','multisig_pending','multisig_approved','split_processing','completed','disputed','refunded','cancelled');
-CREATE TYPE "EscrowStatus" AS ENUM ('initiated','funded','locked','multisig_pending','release_approved','released','disputed','refunded','expired');
-CREATE TYPE "MultiSigStatus" AS ENUM ('pending','buyer_signed','seller_signed','platform_signed','fully_approved','rejected');
-CREATE TYPE "SplitStatus" AS ENUM ('pending','processing','completed','failed','partial');
-CREATE TYPE "ChatMessageType" AS ENUM ('text','image','document','system','redacted');
-CREATE TYPE "DisputeStatus" AS ENUM ('open','under_review','mediation','escalated','resolved_buyer','resolved_seller','resolved_platform','closed');
-CREATE TYPE "AuditAction" AS ENUM ('user_registered','user_verified','user_banned','property_listed','property_moderated','transaction_initiated','escrow_funded','multisig_signed','funds_split','funds_released','dispute_opened','dispute_resolved','chat_redacted','fraud_flagged','admin_action','compliance_review');
 
 -- Users
 CREATE TABLE "users" (
@@ -23,8 +11,8 @@ CREATE TABLE "users" (
   "firstName" TEXT NOT NULL,
   "lastName" TEXT NOT NULL,
   "phone" TEXT NOT NULL UNIQUE,
-  "role" "UserRole" NOT NULL DEFAULT 'buyer',
-  "verificationTier" "VerificationTier" NOT NULL DEFAULT 'NONE',
+  "role" TEXT NOT NULL DEFAULT 'buyer',
+  "verificationTier" TEXT NOT NULL DEFAULT 'NONE',
   "isActive" BOOLEAN NOT NULL DEFAULT true,
   "isVerified" BOOLEAN NOT NULL DEFAULT false,
   "isBanned" BOOLEAN NOT NULL DEFAULT false,
@@ -75,9 +63,9 @@ CREATE TABLE "properties" (
   "title" TEXT NOT NULL,
   "description" TEXT NOT NULL,
   "price" DOUBLE PRECISION NOT NULL,
-  "propertyType" "PropertyType" NOT NULL,
-  "listingType" "ListingType" NOT NULL,
-  "status" "PropertyStatus" NOT NULL DEFAULT 'pending',
+  "propertyType" TEXT NOT NULL,
+  "listingType" TEXT NOT NULL,
+  "status" TEXT NOT NULL DEFAULT 'pending',
   "state" TEXT NOT NULL,
   "lga" TEXT NOT NULL,
   "address" TEXT NOT NULL,
@@ -110,7 +98,7 @@ CREATE TABLE "transactions" (
   "agentId" TEXT,
   "amount" DOUBLE PRECISION NOT NULL,
   "type" TEXT NOT NULL,
-  "status" "TransactionStatus" NOT NULL DEFAULT 'initiated',
+  "status" TEXT NOT NULL DEFAULT 'initiated',
   "paymentPlan" TEXT NOT NULL DEFAULT 'full',
   "paymentReference" TEXT, "paidAt" TIMESTAMPTZ,
   "completedAt" TIMESTAMPTZ, "cancelledAt" TIMESTAMPTZ, "cancelReason" TEXT,
@@ -133,8 +121,8 @@ CREATE TABLE "escrows" (
   "vatAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
   "whtAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
   "netSellerAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
-  "status" "EscrowStatus" NOT NULL DEFAULT 'initiated',
-  "multiSigStatus" "MultiSigStatus" NOT NULL DEFAULT 'pending',
+  "status" TEXT NOT NULL DEFAULT 'initiated',
+  "multiSigStatus" TEXT NOT NULL DEFAULT 'pending',
   "paymentReference" TEXT, "paystackAuthCode" TEXT, "fundedAt" TIMESTAMPTZ,
   "inspectionPassed" BOOLEAN, "inspectionDate" TIMESTAMPTZ, "inspectionNotes" TEXT,
   "docsVerified" BOOLEAN NOT NULL DEFAULT false, "docsVerifiedAt" TIMESTAMPTZ, "docsVerifiedBy" TEXT,
@@ -174,7 +162,7 @@ CREATE TABLE "split_receipts" (
   "whtRef" TEXT,
   "netSellerAmount" DOUBLE PRECISION NOT NULL,
   "netSellerRef" TEXT,
-  "status" "SplitStatus" NOT NULL DEFAULT 'pending',
+  "status" TEXT NOT NULL DEFAULT 'pending',
   "processedAt" TIMESTAMPTZ, "failureReason" TEXT, "retryCount" INTEGER NOT NULL DEFAULT 0,
   "platformVaultId" TEXT, "taxVaultId" TEXT,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -226,7 +214,7 @@ CREATE TABLE "chat_messages" (
   "senderId" TEXT NOT NULL REFERENCES "users"("id"),
   "content" TEXT NOT NULL,
   "originalContent" TEXT,
-  "messageType" "ChatMessageType" NOT NULL DEFAULT 'text',
+  "messageType" TEXT NOT NULL DEFAULT 'text',
   "isRedacted" BOOLEAN NOT NULL DEFAULT false,
   "redactedAt" TIMESTAMPTZ, "redactedReason" TEXT, "redactedBy" TEXT,
   "fileUrl" TEXT, "fileName" TEXT,
@@ -239,7 +227,7 @@ CREATE INDEX "chat_messages_roomId_idx" ON "chat_messages"("roomId");
 -- Audit Logs
 CREATE TABLE "audit_logs" (
   "id" TEXT NOT NULL PRIMARY KEY,
-  "action" "AuditAction" NOT NULL,
+  "action" TEXT NOT NULL,
   "userId" TEXT REFERENCES "users"("id"),
   "transactionId" TEXT REFERENCES "transactions"("id"),
   "resourceType" TEXT, "resourceId" TEXT,
@@ -259,7 +247,7 @@ CREATE TABLE "disputes" (
   "respondentId" TEXT,
   "reason" TEXT NOT NULL,
   "evidence" JSONB NOT NULL DEFAULT '[]',
-  "status" "DisputeStatus" NOT NULL DEFAULT 'open',
+  "status" TEXT NOT NULL DEFAULT 'open',
   "assignedTo" TEXT, "resolution" TEXT,
   "resolvedBy" TEXT, "resolvedAt" TIMESTAMPTZ, "timeline" JSONB,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
