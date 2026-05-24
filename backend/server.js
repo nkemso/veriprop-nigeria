@@ -228,6 +228,16 @@ app.use((err, req, res, next) => {
 // ============================================================
 // START SERVER
 // ============================================================
+const runMigrations = async () => {
+  try {
+    const { execSync } = require('child_process');
+    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+    console.log('✅ Migrations applied');
+  } catch (e) {
+    console.warn('[MIGRATE] Migration warning (may already be applied):', e.message.substring(0,100));
+  }
+};
+
 const startServer = async () => {
   try {
     // Start server first so Railway healthcheck can reach it
@@ -242,7 +252,8 @@ const startServer = async () => {
       `);
     });
 
-    // Connect DB after server is already listening
+    // Run migrations then connect DB
+    await runMigrations();
     try {
       await connect();
       initializeVaults().catch(e => console.warn('[VAULT] Init warning:', e.message));
