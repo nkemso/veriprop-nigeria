@@ -215,14 +215,22 @@ userRouter.get('/me', authenticateToken, async (req, res) => {
       select: {
         id: true, email: true, firstName: true, lastName: true,
         phone: true, role: true, isVerified: true, isActive: true,
+        verificationTier: true, fraudScore: true,
         createdAt: true, lastLoginAt: true,
-        profile: true,
-        _count: { select: { properties: true, transactions: true } },
       },
     });
-    res.json({ success: true, user });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    // Get profile separately (may not exist)
+    let profile = null;
+    try {
+      profile = await db.userProfile.findUnique({ where: { userId: req.user.id } });
+    } catch(e) { /* profile table may not exist yet */ }
+    
+    res.json({ success: true, user: { ...user, profile } });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch profile' });
+    console.error('Profile error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch profile', debug: error.message });
   }
 });
 
