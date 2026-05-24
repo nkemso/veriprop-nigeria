@@ -73,16 +73,8 @@ authRouter.post('/register', [
       tokens: { accessToken, refreshToken },
     });
   } catch (error) {
-    const errMsg = error.message || String(error);
-    const errCode = error.code || 'unknown';
-    console.error('Register error code:', errCode);
-    console.error('Register error:', errMsg.substring(0, 200));
-    res.status(500).json({ 
-      success: false, 
-      message: 'Registration failed',
-      debug: errMsg.substring(0, 100),
-      code: errCode
-    });
+    console.error('Register error:', error);
+    res.status(500).json({ success: false, message: 'Registration failed' });
   }
 });
 
