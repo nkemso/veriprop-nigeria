@@ -7,7 +7,7 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Install ALL deps (including prisma CLI in devDeps)
+# Install ALL deps including prisma CLI
 RUN npm install
 
 COPY . .
@@ -15,9 +15,7 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-# Remove dev dependencies after build
-RUN npm prune --production
-
+# NOTE: Do NOT prune dev deps - prisma CLI needed at runtime for migrations
 EXPOSE 5000
 
 CMD ["node", "backend/server.js"]
