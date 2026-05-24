@@ -226,11 +226,7 @@ app.use((err, req, res, next) => {
 // ============================================================
 const startServer = async () => {
   try {
-    await connect();
-
-    // Initialize vaults on startup
-    initializeVaults().catch(e => console.warn('[VAULT] Init warning:', e.message));
-
+    // Start server first so Railway healthcheck can reach it
     const server = app.listen(config.app.port, "0.0.0.0", () => {
       console.log(`
 🚀 ============================================
@@ -238,10 +234,26 @@ const startServer = async () => {
    Port:        ${config.app.port}
    Environment: ${config.app.env}
    Health:      http://localhost:${config.app.port}/api/v1/ops/health
-   Docs:        http://localhost:${config.app.port}/api/v1/docs
 ==============================================
       `);
     });
+
+    // Connect DB after server is already listening
+    try {
+      await connect();
+      initializeVaults().catch(e => console.warn('[VAULT] Init warning:', e.message));
+    } catch (dbError) {
+      console.error('[DB] Connection failed - retrying in 5s:', dbError.message);
+      setTimeout(async () => {
+        try {
+          await connect();
+          initializeVaults().catch(e => console.warn('[VAULT] Init warning:', e.message));
+          console.log('[DB] Reconnected successfully');
+        } catch(e) {
+          console.error('[DB] Retry failed:', e.message);
+        }
+      }, 5000);
+    }
 
     const gracefulShutdown = async (signal) => {
       console.log(`\n${signal} — Shutting down gracefully...`);
