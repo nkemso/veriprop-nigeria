@@ -1,14 +1,18 @@
 {
   "version": 2,
-  "name": "veripro-nigeria",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "npm install",
-  "framework": "vite",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "https://veripro-nigeria-backend.railway.app/api/$1"
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
     },
     {
       "src": "/(.*)",
@@ -16,24 +20,7 @@
     }
   ],
   "env": {
-    "VITE_API_URL": "https://veripro-nigeria-backend.railway.app",
-    "VITE_APP_NAME": "VeriPro Nigeria",
-    "VITE_PAYSTACK_PUBLIC_KEY": "@paystack_public_key",
-    "VITE_GOOGLE_MAPS_API_KEY": "@google_maps_api_key"
-  },
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-XSS-Protection", "value": "1; mode=block" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.paystack.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://res.cloudinary.com; connect-src 'self' https://veripro-nigeria-backend.railway.app;"
-        }
-      ]
-    }
-  ]
+    "VITE_API_URL": "https://veriprop-nigeria-production.up.railway.app",
+    "VITE_APP_NAME": "VeriProp Nigeria"
+  }
 }
