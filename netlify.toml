@@ -1,0 +1,12 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  VITE_API_URL = "https://veriprop-nigeria-production.up.railway.app"
+  VITE_APP_NAME = "VeriProp Nigeria"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
