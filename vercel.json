@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "outputDirectory": "dist",
+  "buildCommand": false,
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
