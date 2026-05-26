@@ -2,7 +2,8 @@ import React, { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 
-// Onboarding
+// Root (smart: onboarding for new users, marketplace for returning)
+const RootPage          = lazy(() => import('./pages/RootPage'))
 const Onboarding        = lazy(() => import('./pages/onboarding/Onboarding'))
 
 // Marketplace
@@ -72,11 +73,9 @@ export default function App() {
       <BrowserRouter>
         <Suspense fallback={<Loader />}>
           <Routes>
-            {/* Onboarding */}
+            {/* Root: smart routing — onboarding for new, marketplace for returning */}
+            <Route path="/"                     element={<RootPage />} />
             <Route path="/welcome"              element={<Onboarding />} />
-
-            {/* Main marketplace */}
-            <Route path="/"                     element={<MarketplaceHome />} />
             <Route path="/properties"           element={<Properties />} />
             <Route path="/properties/:id"       element={<PropertyDetail />} />
             <Route path="/list-property"        element={<ListProperty />} />
