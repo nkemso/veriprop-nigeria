@@ -379,6 +379,51 @@ verifyRouter.post('/phone/verify-otp', authenticateToken, [
   }
 });
 
+// Biometric / Liveness verification endpoint
+verifyRouter.post('/biometric', authenticateToken, async (req, res) => {
+  try {
+    const { livenessScore, capturedAt } = req.body;
+    
+    // In production: integrate with Smile Identity, AWS Rekognition, or Azure Face API
+    // For now: accept liveness score >= 0.85 as verified
+    const passed = (livenessScore || 0) >= 0.85;
+    
+    if (passed) {
+      await db.user.update({
+        where: { id: req.user.id },
+        data: {
+          notaryVerified: true,   // reusing field for biometric
+          notaryVerifiedAt: new Date(),
+          verificationTier: 'TIER3_NOTARY', // maps to Tier 3
+        },
+      });
+      
+      // Log to audit trail
+      db.sessionLog.create({
+        data: {
+          userId: req.user.id,
+          event: 'user_verified',
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          success: true,
+        },
+      }).catch(console.error);
+    }
+    
+    res.json({
+      success: passed,
+      message: passed
+        ? 'Biometric verification successful! You are now Tier 3 verified.'
+        : 'Liveness check failed. Please try again in good lighting.',
+      verificationTier: passed ? 'TIER3_BIOMETRIC' : req.user.verificationTier,
+      biometricVerified: passed,
+    });
+  } catch (error) {
+    console.error('Biometric error:', error);
+    res.status(500).json({ success: false, message: 'Verification system error' });
+  }
+});
+
 // Helper: Welcome email
 const sendWelcomeEmail = async (user) => {
   console.log(`[EMAIL] Welcome email to ${user.email}`);
