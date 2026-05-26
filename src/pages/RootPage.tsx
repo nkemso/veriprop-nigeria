@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 
 // Dynamically import both pages
-const Onboarding = React.lazy(() => import('./onboarding/Onboarding'))
+const Onboarding = React.lazy(() => import('./onboarding/UnifiedOnboarding'))
 const MarketplaceHome = React.lazy(() => import('./marketplace/MarketplaceHome'))
 
 export default function RootPage() {
