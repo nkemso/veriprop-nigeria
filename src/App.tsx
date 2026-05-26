@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
+import { Analytics } from '@vercel/analytics/react'
 
 // Onboarding
 const Onboarding        = lazy(() => import('./pages/onboarding/Onboarding'))
@@ -29,7 +30,7 @@ const SuccessPage       = lazy(() => import('./pages/transaction/SuccessPage'))
 // Dashboards
 const AgentDashboard    = lazy(() => import('./pages/dashboards/AgentDashboard'))
 const InvestorDashboard = lazy(() => import('./pages/dashboards/InvestorDashboard'))
-const Analytics         = lazy(() => import('./pages/dashboards/MarketplaceAnalytics'))
+const MarketplaceAnalytics = lazy(() => import('./pages/dashboards/MarketplaceAnalytics'))
 
 // Compliance
 const ComplianceHub     = lazy(() => import('./pages/compliance/ComplianceHub'))
@@ -97,7 +98,7 @@ export default function App() {
             {/* Role Dashboards */}
             <Route path="/agent/dashboard"      element={<AgentDashboard />} />
             <Route path="/investor/dashboard"   element={<InvestorDashboard />} />
-            <Route path="/analytics"            element={<Analytics />} />
+            <Route path="/analytics"            element={<MarketplaceAnalytics />} />
 
             {/* Compliance & Admin */}
             <Route path="/compliance"           element={<ComplianceHub />} />
@@ -117,6 +118,7 @@ export default function App() {
             <Route path="*"                     element={<Soon name="Page Not Found" />} />
           </Routes>
         </Suspense>
+        <Analytics />
       </BrowserRouter>
     </ErrorBoundary>
   )
