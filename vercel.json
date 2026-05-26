@@ -1,12 +1,8 @@
 {
-  "version": 2,
-  "buildCommand": "npm install && npm run build",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "installCommand": "echo skip",
-  "framework": null,
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
+  "framework": "vite",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "env": {
     "VITE_API_URL": "https://veriprop-nigeria-production.up.railway.app"
   }
