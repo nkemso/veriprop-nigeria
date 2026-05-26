@@ -185,7 +185,10 @@ export default function Onboarding() {
     setScreen(i)
   }
 
-  const skip = () => goTo(3)
+  const markSeen = () => {
+    localStorage.setItem('vp_onboarding_seen', '1')
+  }
+  const skip = () => { markSeen(); goTo(3) }
 
   const s = IMAGE_COLLECTIONS[screen]
 
@@ -337,12 +340,16 @@ export default function Onboarding() {
 
             {/* Final CTA */}
             <a href={selectedRole ? `/register?role=${selectedRole}` : '/register'}
+              onClick={() => { localStorage.setItem('vp_onboarding_seen','1') }}
               style={{ display: 'block', textAlign: 'center', background: s.accent, color: '#1e3a5f', padding: '1rem', borderRadius: '0.875rem', fontWeight: 800, fontSize: '1.05rem', textDecoration: 'none', marginBottom: '0.75rem', boxShadow: `0 8px 24px ${s.accent}40` }}>
               {selectedRole ? `Continue as ${ROLES.find(r => r.value === selectedRole)?.label} →` : 'Create Free Account →'}
             </a>
-            <div style={{ textAlign: 'center' }}>
-              <a href="/login" style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: '0.875rem' }}>
+            <div style={{ textAlign: 'center', display:'flex', gap:'1.5rem', justifyContent:'center', flexWrap:'wrap' }}>
+              <a href="/login" onClick={() => { localStorage.setItem('vp_onboarding_seen','1') }} style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: '0.875rem' }}>
                 Already have an account? <span style={{ color: '#fff', fontWeight: 700 }}>Sign In →</span>
+              </a>
+              <a href="/?skip=1" onClick={() => { localStorage.setItem('vp_onboarding_seen','1') }} style={{ color: 'rgba(255,255,255,0.35)', textDecoration: 'none', fontSize: '0.875rem' }}>
+                Browse Marketplace →
               </a>
             </div>
           </div>
