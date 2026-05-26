@@ -13,7 +13,7 @@ const TIERS = [
   {
     tier: 'TIER2_GOVT_ID',
     label: 'Tier 2 — Government ID',
-    desc: 'Upload a valid NIN slip, International Passport, or Driver's License.',
+    desc: 'Upload a valid NIN slip, International Passport, or Drivers License.',
     icon: '🪪',
     required: true,
     fields: ['idType', 'idNumber', 'idImage'],
@@ -147,7 +147,7 @@ export default function VerificationHub() {
                     >
                       <option value="nin">NIN Slip</option>
                       <option value="passport">International Passport</option>
-                      <option value="drivers_license">Driver's License</option>
+                      <option value="drivers_license">Drivers License</option>
                       <option value="voters_card">Voter's Card</option>
                     </select>
                     <button style={{
