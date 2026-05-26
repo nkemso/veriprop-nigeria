@@ -16,6 +16,7 @@ const ListProperty      = lazy(() => import('./pages/marketplace/ListProperty'))
 const Login             = lazy(() => import('./pages/auth/Login'))
 const Register          = lazy(() => import('./pages/auth/Register'))
 const VerificationHub   = lazy(() => import('./pages/auth/VerificationHub'))
+const BiometricVerify   = lazy(() => import('./pages/auth/BiometricVerification'))
 
 // User
 const Dashboard         = lazy(() => import('./pages/user/Dashboard'))
