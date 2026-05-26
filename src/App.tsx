@@ -31,6 +31,10 @@ const AgentDashboard    = lazy(() => import('./pages/dashboards/AgentDashboard')
 const InvestorDashboard = lazy(() => import('./pages/dashboards/InvestorDashboard'))
 const Analytics         = lazy(() => import('./pages/dashboards/MarketplaceAnalytics'))
 
+// Admin
+const AdminLogin        = lazy(() => import('./pages/admin/AdminLogin'))
+const AdminDashboard    = lazy(() => import('./pages/admin/AdminDashboard'))
+
 // Compliance
 const ComplianceHub     = lazy(() => import('./pages/compliance/ComplianceHub'))
 const DisputeResolution = lazy(() => import('./pages/management/DisputeResolution'))
@@ -98,6 +102,10 @@ export default function App() {
             <Route path="/agent/dashboard"      element={<AgentDashboard />} />
             <Route path="/investor/dashboard"   element={<InvestorDashboard />} />
             <Route path="/analytics"            element={<Analytics />} />
+
+            {/* Admin Portal */}
+            <Route path="/admin/login"          element={<AdminLogin />} />
+            <Route path="/admin/dashboard"      element={<AdminDashboard />} />
 
             {/* Compliance & Admin */}
             <Route path="/compliance"           element={<ComplianceHub />} />
