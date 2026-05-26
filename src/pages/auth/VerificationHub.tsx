@@ -18,11 +18,11 @@ const TIERS = [
     required: true,
   },
   {
-    tier: 'TIER3_NOTARY',
-    label: 'Tier 3 — Notary / Legal Certification',
-    desc: 'Required for high-value transactions. Upload a notarized affidavit.',
-    icon: '⚖️',
-    required: false,
+    tier: 'TIER3_BIOMETRIC',
+    label: 'Tier 3 — Selfie Liveness Check',
+    desc: 'Mandatory biometric verification. A 30-second selfie scan to confirm your identity.',
+    icon: '🤳',
+    required: true,
   },
 ]
 
@@ -298,33 +298,29 @@ export default function VerificationHub() {
                   )}
 
                   {/* ── TIER 3: NOTARY ── */}
-                  {tier.tier === 'TIER3_NOTARY' && (
+                  {tier.tier === 'TIER3_BIOMETRIC' && (
                     <div style={{ paddingTop: '1.25rem' }}>
-                      <p style={{ color: '#374151', marginBottom: '1rem', lineHeight: 1.7, fontSize: '0.9rem' }}>
-                        Upload a notarized affidavit or legal certification from a certified Nigerian notary public. Accepted formats: PDF, JPG, PNG (max 5MB).
-                      </p>
-                      <div style={{ border: '2px dashed #e2e8f0', borderRadius: '0.75rem', padding: '2rem', textAlign: 'center', background: '#f8fafc', marginBottom: '1rem' }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📄</div>
-                        <p style={{ color: '#64748b', margin: '0 0 1rem', fontSize: '0.875rem' }}>Drag & drop or click to upload notary document</p>
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onClick={e => e.stopPropagation()}
-                          onChange={e => e.stopPropagation()}
-                          style={{ display: 'none' }}
-                          id="notary-upload"
-                        />
-                        <label htmlFor="notary-upload"
-                          onClick={e => e.stopPropagation()}
-                          style={{ background: '#1d4ed8', color: '#fff', padding: '0.625rem 1.5rem', borderRadius: '0.5rem', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}>
-                          Choose File
-                        </label>
+                      <div style={{ background: 'linear-gradient(135deg,#0d1117,#161b22)', border: '1px solid #21262d', borderRadius: '0.875rem', padding: '1.5rem', marginBottom: '1rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>🤳</div>
+                        <div style={{ fontWeight: 800, color: '#f0f6fc', fontSize: '1rem', marginBottom: '0.5rem' }}>Biometric Selfie Liveness Check</div>
+                        <p style={{ color: '#8b949e', fontSize: '0.8rem', lineHeight: 1.7, margin: '0 0 1rem' }}>
+                          A 30-second guided selfie scan to confirm you are a real, live person. No document upload needed.
+                        </p>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                          {['👀 Look straight', '⬅️ Turn left', '➡️ Turn right', '👁️ Blink', '😊 Smile'].map(p => (
+                            <span key={p} style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', padding: '0.2rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem' }}>{p}</span>
+                          ))}
+                        </div>
+                        <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '0.5rem', padding: '0.625rem', fontSize: '0.75rem', color: '#10b981', marginBottom: '1rem' }}>
+                          🔒 Biometric data is processed locally per NDPR 2019 and never stored permanently.
+                        </div>
                       </div>
-                      <button
-                        onClick={e => { e.stopPropagation(); alert('Document upload coming soon. Contact support@veripronigeria.com for Tier 3 verification.') }}
-                        style={{ width: '100%', padding: '0.875rem', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '0.5rem', fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}>
-                        Submit Notary Document →
-                      </button>
+                      <a
+                        href="/verify/biometric"
+                        onClick={e => e.stopPropagation()}
+                        style={{ display: 'block', width: '100%', padding: '0.875rem', background: '#10b981', color: '#fff', border: 'none', borderRadius: '0.5rem', fontWeight: 800, fontSize: '1rem', cursor: 'pointer', textDecoration: 'none', textAlign: 'center', boxSizing: 'border-box' }}>
+                        🤳 Start Biometric Scan →
+                      </a>
                     </div>
                   )}
                 </div>
