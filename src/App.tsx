@@ -3,8 +3,13 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 
 // Root (smart: onboarding for new users, marketplace for returning)
-const RootPage          = lazy(() => import('./pages/RootPage'))
-const Onboarding        = lazy(() => import('./pages/onboarding/Onboarding'))
+const RootPage              = lazy(() => import('./pages/RootPage'))
+const Onboarding            = lazy(() => import('./pages/onboarding/Onboarding'))
+const UnifiedOnboarding     = lazy(() => import('./pages/onboarding/UnifiedOnboarding'))
+
+// AI Advisors
+const MarketIntelligence    = lazy(() => import('./pages/ai-advisors/MarketIntelligenceHub'))
+const VetProAdvisors        = lazy(() => import('./pages/ai-advisors/VetProAdvisors'))
 
 // Marketplace
 const MarketplaceHome   = lazy(() => import('./pages/marketplace/MarketplaceHome'))
@@ -76,7 +81,8 @@ export default function App() {
           <Routes>
             {/* Root: smart routing — onboarding for new, marketplace for returning */}
             <Route path="/"                     element={<RootPage />} />
-            <Route path="/welcome"              element={<Onboarding />} />
+            <Route path="/welcome"              element={<UnifiedOnboarding />} />
+            <Route path="/onboarding"           element={<UnifiedOnboarding />} />
             <Route path="/properties"           element={<Properties />} />
             <Route path="/properties/:id"       element={<PropertyDetail />} />
             <Route path="/list-property"        element={<ListProperty />} />
@@ -120,6 +126,10 @@ export default function App() {
 
             {/* Utility */}
             <Route path="/low-data"             element={<LowDataMode />} />
+
+            {/* AI Advisors */}
+            <Route path="/ai/market"            element={<MarketIntelligence />} />
+            <Route path="/ai/advisor"           element={<VetProAdvisors />} />
 
             {/* Catch all */}
             <Route path="*"                     element={<Soon name="Page Not Found" />} />
