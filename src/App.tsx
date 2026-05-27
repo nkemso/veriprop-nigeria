@@ -7,6 +7,10 @@ const RootPage              = lazy(() => import('./pages/RootPage'))
 const Onboarding            = lazy(() => import('./pages/onboarding/Onboarding'))
 const UnifiedOnboarding     = lazy(() => import('./pages/onboarding/UnifiedOnboarding'))
 
+// Monetization
+const PricingPlans      = lazy(() => import('./pages/monetization/PricingPlans'))
+const BoostProperty     = lazy(() => import('./pages/monetization/BoostProperty'))
+
 // Map
 const MapSearchView         = lazy(() => import('./components/PropertyMap').then((m: any) => ({ default: m.MapSearchView })))
 
@@ -130,6 +134,11 @@ export default function App() {
 
             {/* Utility */}
             <Route path="/low-data"             element={<LowDataMode />} />
+
+            {/* Monetization */}
+            <Route path="/pricing"              element={<PricingPlans />} />
+            <Route path="/boost"                element={<BoostProperty />} />
+            <Route path="/advertise"            element={<PricingPlans />} />
 
             {/* Map */}
             <Route path="/map"                  element={<MapSearchView />} />
