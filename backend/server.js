@@ -84,7 +84,7 @@ app.get('/api/v1/ops/health', async (req, res) => {
   }
   res.json({
     status: 'ok',
-    version: '2.1.0',
+    version: '2.2.0',
     timestamp: new Date().toISOString(),
     domains: {
       database: dbOk,
