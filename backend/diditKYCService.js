@@ -29,10 +29,11 @@ let cachedWorkflowId = null;
 // HELPER — Fetch with auth
 // ================================================================
 async function diditFetch(endpoint, method = 'POST', body = null) {
+  const apiKey = config.didit?.apiKey || process.env.DIDIT_API_KEY || '';
   const opts = {
     method,
     headers: {
-      'x-api-key': config.didit?.apiKey || process.env.DIDIT_API_KEY || '',
+      'x-api-key': apiKey,
       'Content-Type': 'application/json',
     },
   };
