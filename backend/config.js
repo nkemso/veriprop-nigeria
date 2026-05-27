@@ -141,7 +141,13 @@ const config = {
   },
 
   maps: {
-    googleApiKey: process.env.GOOGLE_MAPS_API_KEY,
+    // OpenStreetMap — completely FREE, no API key required
+    provider: 'openstreetmap',
+    tileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    nominatimUrl: 'https://nominatim.openstreetmap.org',
+    attribution: '© OpenStreetMap contributors',
+    // Optional: Mapbox fallback (free tier 50k requests/month)
+    mapboxToken: process.env.MAPBOX_TOKEN || null,
   },
 
   cloudinary: {
