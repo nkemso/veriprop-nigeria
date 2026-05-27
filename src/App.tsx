@@ -7,6 +7,13 @@ const RootPage              = lazy(() => import('./pages/RootPage'))
 const Onboarding            = lazy(() => import('./pages/onboarding/Onboarding'))
 const UnifiedOnboarding     = lazy(() => import('./pages/onboarding/UnifiedOnboarding'))
 
+// Final onboarding
+const FinalOnboarding   = lazy(() => import('./pages/onboarding/FinalOnboarding'))
+
+// Legal database
+const LegalDatabase     = lazy(() => import('./pages/legal/LegalDatabase'))
+const TaxCompliance     = lazy(() => import('./pages/compliance/PropertyTaxCompliance'))
+
 // Monetization
 const PricingPlans      = lazy(() => import('./pages/monetization/PricingPlans'))
 const BoostProperty     = lazy(() => import('./pages/monetization/BoostProperty'))
@@ -134,6 +141,14 @@ export default function App() {
 
             {/* Utility */}
             <Route path="/low-data"             element={<LowDataMode />} />
+
+            {/* Final onboarding */}
+            <Route path="/welcome"              element={<FinalOnboarding />} />
+            <Route path="/onboarding"           element={<FinalOnboarding />} />
+
+            {/* Legal */}
+            <Route path="/legal/database"       element={<LegalDatabase />} />
+            <Route path="/legal/compliance"     element={<TaxCompliance />} />
 
             {/* Monetization */}
             <Route path="/pricing"              element={<PricingPlans />} />
