@@ -39,6 +39,7 @@ const BiometricVerify   = lazy(() => import('./pages/auth/BiometricVerification'
 
 // User
 const Dashboard         = lazy(() => import('./pages/user/Dashboard'))
+const Portfolio         = lazy(() => import('./pages/user/Portfolio'))
 
 // Transactions
 const EscrowCheckout    = lazy(() => import('./pages/transaction/EscrowCheckout'))
@@ -109,7 +110,7 @@ export default function App() {
 
             {/* User */}
             <Route path="/dashboard"            element={<Dashboard />} />
-            <Route path="/portfolio"            element={<Soon name="Portfolio" />} />
+            <Route path="/portfolio"            element={<Portfolio />} />
 
             {/* Transactions */}
             <Route path="/escrow/checkout"      element={<EscrowCheckout />} />
