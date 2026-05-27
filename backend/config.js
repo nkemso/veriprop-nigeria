@@ -140,6 +140,13 @@ const config = {
     },
   },
 
+  // Didit KYC — FREE 500/month (business.didit.me)
+  didit: {
+    apiKey: process.env.DIDIT_API_KEY,
+    enabled: !!(process.env.DIDIT_API_KEY),
+    freeMonthly: 500,
+  },
+
   maps: {
     // OpenStreetMap — completely FREE, no API key required
     provider: 'openstreetmap',
