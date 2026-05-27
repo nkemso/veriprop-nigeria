@@ -94,6 +94,7 @@ export default function App() {
             <Route path="/login"                element={<Login />} />
             <Route path="/register"             element={<Register />} />
             <Route path="/verify"               element={<VerificationHub />} />
+            <Route path="/verify/biometric"     element={<BiometricVerify />} />
 
             {/* User */}
             <Route path="/dashboard"            element={<Dashboard />} />
