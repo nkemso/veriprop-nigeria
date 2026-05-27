@@ -7,6 +7,9 @@ const RootPage              = lazy(() => import('./pages/RootPage'))
 const Onboarding            = lazy(() => import('./pages/onboarding/Onboarding'))
 const UnifiedOnboarding     = lazy(() => import('./pages/onboarding/UnifiedOnboarding'))
 
+// Map
+const MapSearchView         = lazy(() => import('./components/PropertyMap').then((m: any) => ({ default: m.MapSearchView })))
+
 // AI Advisors
 const MarketIntelligence    = lazy(() => import('./pages/ai-advisors/MarketIntelligenceHub'))
 const VetProAdvisors        = lazy(() => import('./pages/ai-advisors/VetProAdvisors'))
@@ -126,6 +129,9 @@ export default function App() {
 
             {/* Utility */}
             <Route path="/low-data"             element={<LowDataMode />} />
+
+            {/* Map */}
+            <Route path="/map"                  element={<MapSearchView />} />
 
             {/* AI Advisors */}
             <Route path="/ai/market"            element={<MarketIntelligence />} />
