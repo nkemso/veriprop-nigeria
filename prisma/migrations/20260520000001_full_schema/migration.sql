@@ -292,3 +292,24 @@ CREATE TABLE "session_logs" (
 CREATE INDEX "session_logs_userId_idx" ON "session_logs"("userId");
 CREATE INDEX "session_logs_event_idx" ON "session_logs"("event");
 CREATE INDEX "session_logs_createdAt_idx" ON "session_logs"("createdAt");
+
+
+-- Safe column additions (IF NOT EXISTS) for Railway DB sync
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='bvn_hash') THEN
+    ALTER TABLE users ADD COLUMN "bvnHash" TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='nin_hash') THEN
+    ALTER TABLE users ADD COLUMN "ninHash" TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='verification_tier') THEN
+    ALTER TABLE users ADD COLUMN "verificationTier" TEXT NOT NULL DEFAULT 'NONE';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='bvn_verified') THEN
+    ALTER TABLE users ADD COLUMN "bvnVerified" BOOLEAN NOT NULL DEFAULT false;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='nin_verified') THEN
+    ALTER TABLE users ADD COLUMN "ninVerified" BOOLEAN NOT NULL DEFAULT false;
+  END IF;
+EXCEPTION WHEN others THEN NULL;
+END $$;
