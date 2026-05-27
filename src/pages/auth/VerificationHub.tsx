@@ -44,6 +44,7 @@ export default function VerificationHub() {
 
   const submitBVN = async () => {
     if (bvn.length !== 11) return
+    if (!token) { setBvnMsg({ ok: false, text: 'Please log in first to verify your BVN.' }); return }
     setBvnLoading(true)
     setBvnMsg(null)
     try {
@@ -52,28 +53,48 @@ export default function VerificationHub() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ bvn }),
       })
+      if (!res.ok && res.status === 401) {
+        setBvnMsg({ ok: false, text: 'Session expired. Please log in again.' })
+        setBvnLoading(false)
+        return
+      }
       const data = await res.json()
-      setBvnMsg({ ok: data.success, text: data.message })
-    } catch {
-      setBvnMsg({ ok: false, text: 'Verification failed. Please try again.' })
+      setBvnMsg({ ok: data.success, text: data.message || (data.success ? 'BVN verified!' : 'Verification failed') })
+      if (data.success) {
+        localStorage.setItem('user', JSON.stringify({ ...JSON.parse(localStorage.getItem('user') || '{}'), bvnVerified: true, verificationTier: 'TIER1_BVN' }))
+      }
+    } catch (err) {
+      setBvnMsg({ ok: false, text: 'Network error. Check your connection and try again.' })
     }
     setBvnLoading(false)
   }
 
   const submitNIN = async () => {
     if (idNumber.length < 9) return
+    if (!token) { setNinMsg({ ok: false, text: 'Please log in first to verify your ID.' }); return }
     setNinLoading(true)
     setNinMsg(null)
     try {
-      const res = await fetch(`${API}/api/v1/verify/nin`, {
+      // NIN uses /nin endpoint, other IDs use /bvn for now
+      const endpoint = idType === 'nin' ? 'nin' : 'bvn'
+      const body = idType === 'nin' ? { nin: idNumber } : { bvn: idNumber }
+      const res = await fetch(`${API}/api/v1/verify/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ nin: idNumber }),
+        body: JSON.stringify(body),
       })
+      if (!res.ok && res.status === 401) {
+        setNinMsg({ ok: false, text: 'Session expired. Please log in again.' })
+        setNinLoading(false)
+        return
+      }
       const data = await res.json()
-      setNinMsg({ ok: data.success, text: data.message })
-    } catch {
-      setNinMsg({ ok: false, text: 'Verification failed. Please try again.' })
+      setNinMsg({ ok: data.success, text: data.message || (data.success ? 'ID verified!' : 'Verification failed') })
+      if (data.success) {
+        localStorage.setItem('user', JSON.stringify({ ...JSON.parse(localStorage.getItem('user') || '{}'), ninVerified: true, verificationTier: 'TIER2_GOVT_ID' }))
+      }
+    } catch (err) {
+      setNinMsg({ ok: false, text: 'Network error. Check your connection and try again.' })
     }
     setNinLoading(false)
   }
