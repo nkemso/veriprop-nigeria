@@ -286,16 +286,16 @@ verifyRouter.post('/nin', authenticateToken, [
         where: { id: req.user.id },
         data: {
           ninVerified: true,
-          ninNumber: nin,
-          verificationLevel: 1,
+          ninHash: require('crypto').createHash('sha256').update(nin).digest('hex'),
+          verificationTier: 'TIER2_GOVT_ID',
         },
       });
     }
 
     res.json({
       success: isValid,
-      message: isValid ? 'NIN verified successfully' : 'Invalid NIN',
-      verificationLevel: isValid ? 1 : 0,
+      message: isValid ? 'NIN verified successfully! Tier 2 unlocked.' : 'Invalid NIN. Must be 11 digits.',
+      verificationTier: isValid ? 'TIER2_GOVT_ID' : 'TIER1_BVN',
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'NIN verification failed' });
@@ -313,13 +313,18 @@ verifyRouter.post('/bvn', authenticateToken, [
     if (isValid) {
       await db.user.update({
         where: { id: req.user.id },
-        data: { bvnVerified: true, verificationLevel: 2 },
+        data: {
+          bvnVerified: true,
+          bvnHash: require('crypto').createHash('sha256').update(bvn).digest('hex'),
+          verificationTier: 'TIER1_BVN',
+        },
       });
     }
 
     res.json({
       success: isValid,
-      message: isValid ? 'BVN verified successfully' : 'Invalid BVN',
+      message: isValid ? 'BVN verified successfully! Tier 1 unlocked.' : 'Invalid BVN. Must be 11 digits.',
+      verificationTier: isValid ? 'TIER1_BVN' : 'NONE',
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'BVN verification failed' });
