@@ -55,7 +55,12 @@ function hashSensitiveId(value) {
 }
 
 async function sendWelcomeEmail(user) {
-  console.log(`[Email] Welcome email queued for ${user.email}`);
+  try {
+    const emailService = require('./services/emailService');
+    await emailService.sendWelcomeEmail(user);
+  } catch (err) {
+    console.error('[Email] Welcome email failed:', err.message);
+  }
 }
 
 // ============================================
@@ -658,6 +663,13 @@ verifyRouter.post('/didit-webhook', express.raw({ type: 'application/json' }), a
 
       console.log(`[Didit Webhook] ✅ User ${userId} upgraded to TIER3_NOTARY`);
 
+      // Send verification complete notifications (email + push + in-app)
+      const pushService = require('./services/pushService');
+      const emailService = require('./services/emailService');
+      pushService.notifyVerificationComplete(userId).catch(console.error);
+      const verifiedUser = await db.user.findUnique({ where: { id: userId }, select: { email: true, firstName: true } });
+      if (verifiedUser) emailService.sendVerificationCompleteEmail(verifiedUser).catch(console.error);
+
     } else if (status === 'Declined') {
       console.warn(`[Didit Webhook] ❌ User ${userId} verification DECLINED`);
       // Optionally increase fraud score
@@ -751,54 +763,62 @@ verifyRouter.get('/status', authenticateToken, async (req, res) => {
 
 
 // ─── PHONE OTP ───────────────────────────────────────────────
+// ─── PHONE OTP via Didit ──────────────────────────────────────
 verifyRouter.post('/phone/send-otp', authenticateToken, async (req, res) => {
   try {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    await db.otp.create({
-      data: {
-        userId: req.user.id,
-        otp,
-        type: 'phone',
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-      },
+    const user = await db.user.findUnique({
+      where: { id: req.user.id },
+      select: { phone: true },
     });
-    console.log(`[OTP] ${req.user.id}: ${otp}`);
-    res.json({ success: true, message: 'OTP sent to your phone number' });
+    if (!user?.phone) {
+      return res.status(400).json({ success: false, message: 'No phone number on account.' });
+    }
+
+    const smsService = require('./services/smsService');
+    const result = await smsService.sendOTP(user.phone, 'sms');
+
+    return res.json({
+      success: result.success,
+      message: result.message,
+      provider: result.provider,
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to send OTP' });
+    console.error('[OTP] Send error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to send OTP: ' + error.message });
   }
 });
 
 verifyRouter.post('/phone/verify-otp', authenticateToken, [
-  body('otp').isLength({ min: 6, max: 6 }).isNumeric(),
+  body('otp').isLength({ min: 4, max: 8 }).isNumeric(),
 ], async (req, res) => {
   try {
     const { otp } = req.body;
-    const record = await db.otp.findFirst({
-      where: {
-        userId: req.user.id,
-        otp,
-        type: 'phone',
-        expiresAt: { gt: new Date() },
-        usedAt: null,
-      },
+    const user = await db.user.findUnique({
+      where: { id: req.user.id },
+      select: { phone: true },
     });
-
-    if (!record) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    if (!user?.phone) {
+      return res.status(400).json({ success: false, message: 'No phone number on account.' });
     }
 
-    await Promise.all([
-      db.otp.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
-      db.user.update({
+    const smsService = require('./services/smsService');
+    const result = await smsService.verifyOTP(user.phone, otp);
+
+    if (result.verified) {
+      await db.user.update({
         where: { id: req.user.id },
         data: { phoneVerified: true },
-      }),
-    ]);
+      });
+    }
 
-    res.json({ success: true, message: 'Phone verified successfully' });
+    res.json({
+      success: result.verified,
+      message: result.message,
+      provider: result.provider,
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'OTP verification failed' });
+    console.error('[OTP] Verify error:', error.message);
+    res.status(500).json({ success: false, message: 'OTP verification failed: ' + error.message });
   }
 });
 

@@ -73,6 +73,24 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+// ── COMMS STACK HEALTH ──────────────────────────────────────
+app.get('/api/v1/ops/comms', async (req, res) => {
+  const results = {};
+  try {
+    const emailService = require('./services/emailService');
+    results.email = await emailService.testConnection();
+  } catch (e) { results.email = { connected: false, message: e.message }; }
+  try {
+    const smsService = require('./services/smsService');
+    results.sms = await smsService.testConnection();
+  } catch (e) { results.sms = { connected: false, message: e.message }; }
+  try {
+    const pushService = require('./services/pushService');
+    results.push = await pushService.testConnection();
+  } catch (e) { results.push = { connected: false, message: e.message }; }
+  res.json({ status: 'ok', comms: results, timestamp: new Date().toISOString() });
+});
+
 app.get('/api/v1/ops/health', async (req, res) => {
   let dbOk = false;
   try {

@@ -118,6 +118,25 @@ const config = {
   },
 
   // ============================================================
+  // RESEND — TRANSACTIONAL EMAIL (3,000 free/month)
+  // Sign up: resend.com (no credit card)
+  // ============================================================
+  resend: {
+    apiKey: process.env.RESEND_API_KEY,
+    enabled: !!(process.env.RESEND_API_KEY),
+  },
+
+  // ============================================================
+  // FCM — PUSH NOTIFICATIONS (unlimited free forever)
+  // Setup: console.firebase.google.com → Create project
+  //        → Project Settings → Cloud Messaging → Server Key
+  // ============================================================
+  fcm: {
+    serverKey: process.env.FCM_SERVER_KEY,
+    enabled: !!(process.env.FCM_SERVER_KEY),
+  },
+
+  // ============================================================
   // DIDIT KYC — ZERO-TRUST IDENTITY VERIFICATION
   // ============================================================
   // Sign up: https://business.didit.me (no credit card)
