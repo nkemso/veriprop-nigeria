@@ -298,11 +298,12 @@ verifyRouter.post('/nin', authenticateToken, [
         data: {
           verificationTier: 'TIER2_GOVT_ID',
           ninVerified: true,
+          isVerified: true,
         },
       }).catch(err => {
         return db.user.update({
           where: { id: req.user.id },
-          data: { verificationTier: 'TIER2_GOVT_ID' },
+          data: { verificationTier: 'TIER2_GOVT_ID', isVerified: true },
         });
       });
     }
