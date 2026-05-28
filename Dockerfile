@@ -5,11 +5,14 @@ RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+
+# Use npm install instead of npm ci to avoid lock file sync issues
+RUN npm install
 
 COPY . .
+
 RUN npx prisma generate
-RUN chmod +x start.sh
 
 EXPOSE 5000
+
 CMD ["sh", "start.sh"]
