@@ -762,25 +762,46 @@ verifyRouter.get('/status', authenticateToken, async (req, res) => {
 });
 
 
-// ─── PHONE OTP ───────────────────────────────────────────────
-// ─── PHONE OTP via Didit ──────────────────────────────────────
+// ─── EMAIL OTP (FREE via Resend) ──────────────────────────────
+// Sends OTP to user's registered email — ₦0 cost forever
+// No SMS needed — user is already online using the app
+// ──────────────────────────────────────────────────────────────
 verifyRouter.post('/phone/send-otp', authenticateToken, async (req, res) => {
   try {
     const user = await db.user.findUnique({
       where: { id: req.user.id },
-      select: { phone: true },
+      select: { email: true, phone: true, firstName: true },
     });
-    if (!user?.phone) {
-      return res.status(400).json({ success: false, message: 'No phone number on account.' });
+    if (!user?.email) {
+      return res.status(400).json({ success: false, message: 'No email on account.' });
     }
 
-    const smsService = require('./services/smsService');
-    const result = await smsService.sendOTP(user.phone, 'sms');
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store OTP in DB with 10-min expiry
+    await db.otp.create({
+      data: {
+        userId: req.user.id,
+        otp,
+        type: 'email',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      },
+    });
+
+    // Send via Resend (FREE)
+    const emailService = require('./services/emailService');
+    const result = await emailService.sendOTPEmail(user.email, otp, 'phone verification');
+
+    console.log('[OTP] Email OTP sent to', user.email.slice(0, 3) + '***');
 
     return res.json({
       success: result.success,
-      message: result.message,
-      provider: result.provider,
+      message: result.success
+        ? `✅ Verification code sent to ${user.email.slice(0, 3)}***${user.email.slice(user.email.indexOf('@'))}`
+        : 'Failed to send verification code.',
+      provider: 'resend',
+      channel: 'email',
     });
   } catch (error) {
     console.error('[OTP] Send error:', error.message);
@@ -789,36 +810,43 @@ verifyRouter.post('/phone/send-otp', authenticateToken, async (req, res) => {
 });
 
 verifyRouter.post('/phone/verify-otp', authenticateToken, [
-  body('otp').isLength({ min: 4, max: 8 }).isNumeric(),
+  body('otp').isLength({ min: 6, max: 6 }).isNumeric(),
 ], async (req, res) => {
   try {
     const { otp } = req.body;
-    const user = await db.user.findUnique({
-      where: { id: req.user.id },
-      select: { phone: true },
+
+    // Find valid, unused OTP
+    const record = await db.otp.findFirst({
+      where: {
+        userId: req.user.id,
+        otp,
+        type: 'email',
+        expiresAt: { gt: new Date() },
+        usedAt: null,
+      },
     });
-    if (!user?.phone) {
-      return res.status(400).json({ success: false, message: 'No phone number on account.' });
+
+    if (!record) {
+      return res.status(400).json({ success: false, message: '❌ Invalid or expired code. Please request a new one.' });
     }
 
-    const smsService = require('./services/smsService');
-    const result = await smsService.verifyOTP(user.phone, otp);
-
-    if (result.verified) {
-      await db.user.update({
+    // Mark OTP as used + verify phone
+    await Promise.all([
+      db.otp.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+      db.user.update({
         where: { id: req.user.id },
         data: { phoneVerified: true },
-      });
-    }
+      }),
+    ]);
 
     res.json({
-      success: result.verified,
-      message: result.message,
-      provider: result.provider,
+      success: true,
+      message: '✅ Phone verified successfully!',
+      provider: 'resend',
     });
   } catch (error) {
     console.error('[OTP] Verify error:', error.message);
-    res.status(500).json({ success: false, message: 'OTP verification failed: ' + error.message });
+    res.status(500).json({ success: false, message: 'Verification failed: ' + error.message });
   }
 });
 
