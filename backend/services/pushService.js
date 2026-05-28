@@ -2,26 +2,23 @@
 
 /**
  * ================================================================
- * VERIPROP NIGERIA — PUSH NOTIFICATION SERVICE (FCM)
+ * VERIPROP NIGERIA — PUSH NOTIFICATION SERVICE (FCM V1 API)
  * ================================================================
- * Provider: Firebase Cloud Messaging (FCM)
+ * Provider: Firebase Cloud Messaging V1 API
  * Price: 100% FREE, UNLIMITED forever
  * 
  * Setup:
  *   1. Go to console.firebase.google.com
- *   2. Create project "VeriProp Nigeria"
- *   3. Project Settings → Service Accounts → Generate New Private Key
- *   4. Save as FIREBASE_SERVICE_ACCOUNT env var (JSON string)
- *      OR save as firebase-service-account.json in project root
- *   5. Project Settings → Cloud Messaging → Get Server Key (legacy)
- *      Save as FCM_SERVER_KEY env var
+ *   2. Project Settings → Service Accounts
+ *   3. Click "Generate new private key" → download JSON
+ *   4. Set FIREBASE_SERVICE_ACCOUNT env var to the JSON string
+ *      OR set these 3 vars individually:
+ *        FIREBASE_PROJECT_ID
+ *        FIREBASE_CLIENT_EMAIL
+ *        FIREBASE_PRIVATE_KEY
  * 
- * Two delivery methods:
- *   A. FCM HTTP v1 API (recommended, uses service account)
- *   B. FCM Legacy API (simpler, uses server key)
- *   C. Web Push (VAPID-based, for browser notifications)
- * 
- * We use method B (Legacy) for simplicity + method C for web push.
+ * FCM V1 API uses OAuth2 access tokens from service account,
+ * NOT the deprecated Legacy server key.
  * ================================================================
  */
 
@@ -29,127 +26,192 @@ const crypto = require('crypto');
 const db = require('../db');
 const config = require('../config');
 
-const FCM_LEGACY_URL = 'https://fcm.googleapis.com/fcm/send';
+// ================================================================
+// FCM V1 AUTH — Get OAuth2 access token from service account
+// ================================================================
+let cachedToken = null;
+let tokenExpiry = 0;
+
+function getServiceAccount() {
+  // Try full JSON from env var
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } catch (e) {
+      console.error('[FCM] Invalid FIREBASE_SERVICE_ACCOUNT JSON');
+    }
+  }
+
+  // Try individual vars
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    return {
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    };
+  }
+
+  return null;
+}
+
+function base64url(data) {
+  return Buffer.from(data).toString('base64url');
+}
+
+async function getAccessToken() {
+  // Return cached token if still valid (with 5 min buffer)
+  if (cachedToken && Date.now() < tokenExpiry - 300000) {
+    return cachedToken;
+  }
+
+  const sa = getServiceAccount();
+  if (!sa) throw new Error('Firebase service account not configured');
+
+  // Build JWT for Google OAuth2
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const payload = base64url(JSON.stringify({
+    iss: sa.client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  }));
+
+  const signInput = `${header}.${payload}`;
+  const sign = crypto.createSign('RSA-SHA256');
+  sign.update(signInput);
+  const signature = sign.sign(sa.private_key, 'base64url');
+  const jwt = `${signInput}.${signature}`;
+
+  // Exchange JWT for access token
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`FCM OAuth2 error: ${res.status} ${err}`);
+  }
+
+  const data = await res.json();
+  cachedToken = data.access_token;
+  tokenExpiry = Date.now() + (data.expires_in * 1000);
+
+  return cachedToken;
+}
+
 
 // ================================================================
-// 1. SEND PUSH VIA FCM LEGACY API — To specific device token
+// 1. SEND PUSH VIA FCM V1 API — To specific device token
 // ================================================================
 async function sendPushToDevice(deviceToken, title, body, data = {}) {
-  const serverKey = process.env.FCM_SERVER_KEY;
-
-  if (!serverKey) {
-    console.warn('[Push] FCM_SERVER_KEY not set — push not sent:', title);
+  const sa = getServiceAccount();
+  if (!sa) {
+    console.warn('[Push] Firebase not configured — push not sent:', title);
     return { success: false, message: 'FCM not configured', provider: 'fcm' };
   }
 
   try {
-    const res = await fetch(FCM_LEGACY_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `key=${serverKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: deviceToken,
-        notification: {
-          title,
-          body,
-          icon: '/icons/icon.svg',
-          click_action: data.url || 'https://veriprop-nigeriang.vercel.app/dashboard',
-        },
-        data: {
-          ...data,
-          timestamp: new Date().toISOString(),
-        },
-      }),
-    });
+    const accessToken = await getAccessToken();
+    const projectId = sa.project_id;
 
-    const result = await res.json();
+    const res = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: {
+            token: deviceToken,
+            notification: {
+              title,
+              body,
+            },
+            webpush: {
+              notification: {
+                icon: '/icons/icon.svg',
+                badge: '/icons/icon.svg',
+                vibrate: [100, 50, 100],
+              },
+              fcm_options: {
+                link: data.url || 'https://veriprop-nigeriang.vercel.app/dashboard',
+              },
+            },
+            data: {
+              ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
+              timestamp: new Date().toISOString(),
+            },
+          },
+        }),
+      }
+    );
 
-    if (result.success === 1) {
-      console.log(`[Push] ✅ Sent "${title}" to device`);
-      return { success: true, provider: 'fcm' };
+    if (res.ok) {
+      const result = await res.json();
+      console.log(`[Push] ✅ Sent "${title}" (${result.name})`);
+      return { success: true, messageId: result.name, provider: 'fcm_v1' };
     } else {
-      console.warn('[Push] FCM delivery failed:', result.results?.[0]?.error);
-      return { success: false, message: result.results?.[0]?.error, provider: 'fcm' };
+      const err = await res.text();
+      console.warn('[Push] FCM V1 error:', res.status, err);
+      return { success: false, message: `FCM error: ${res.status}`, provider: 'fcm_v1' };
     }
   } catch (err) {
     console.error('[Push] FCM error:', err.message);
-    return { success: false, message: err.message, provider: 'fcm' };
+    return { success: false, message: err.message, provider: 'fcm_v1' };
   }
 }
 
 
 // ================================================================
-// 2. SEND PUSH VIA FCM — To topic (broadcast to all subscribers)
+// 2. SEND PUSH TO TOPIC — Broadcast to all subscribers of a topic
 // ================================================================
 async function sendPushToTopic(topic, title, body, data = {}) {
-  const serverKey = process.env.FCM_SERVER_KEY;
-
-  if (!serverKey) {
-    console.warn('[Push] FCM_SERVER_KEY not set — topic push not sent');
-    return { success: false, message: 'FCM not configured' };
-  }
+  const sa = getServiceAccount();
+  if (!sa) return { success: false, message: 'FCM not configured' };
 
   try {
-    const res = await fetch(FCM_LEGACY_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `key=${serverKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: `/topics/${topic}`,
-        notification: { title, body, icon: '/icons/icon.svg' },
-        data: { ...data, timestamp: new Date().toISOString() },
-      }),
-    });
+    const accessToken = await getAccessToken();
+    const projectId = sa.project_id;
+
+    const res = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: {
+            topic,
+            notification: { title, body },
+            data: {
+              ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
+              timestamp: new Date().toISOString(),
+            },
+          },
+        }),
+      }
+    );
 
     const result = await res.json();
-    console.log(`[Push] Topic "${topic}" push:`, result.message_id ? '✅' : '❌');
-    return { success: !!result.message_id, messageId: result.message_id, provider: 'fcm' };
+    console.log(`[Push] Topic "${topic}":`, res.ok ? '✅' : '❌');
+    return { success: res.ok, messageId: result.name, provider: 'fcm_v1' };
   } catch (err) {
-    console.error('[Push] Topic push error:', err.message);
+    console.error('[Push] Topic error:', err.message);
     return { success: false, message: err.message };
   }
 }
 
 
 // ================================================================
-// 3. WEB PUSH — Using VAPID keys for browser notifications
-//    This works without FCM — uses standard Web Push Protocol
-// ================================================================
-function generateVAPIDKeys() {
-  // Generate VAPID keys for Web Push (run once, save to env)
-  const ecdh = crypto.createECDH('prime256v1');
-  ecdh.generateKeys();
-  return {
-    publicKey: ecdh.getPublicKey('base64url'),
-    privateKey: ecdh.getPrivateKey('base64url'),
-  };
-}
-
-async function sendWebPush(subscription, title, body, data = {}) {
-  // Web Push requires the `web-push` npm package
-  // For now, we store the notification in DB and let the frontend poll
-  // When you add `npm install web-push`, activate this:
-  //
-  // const webpush = require('web-push');
-  // webpush.setVapidDetails(
-  //   'mailto:support@veripropnigeria.com',
-  //   process.env.VAPID_PUBLIC_KEY,
-  //   process.env.VAPID_PRIVATE_KEY
-  // );
-  // await webpush.sendNotification(subscription, JSON.stringify({ title, body, ...data }));
-
-  console.log(`[WebPush] Queued: "${title}" — ${body}`);
-  return { success: true, message: 'Web push queued', provider: 'web_push' };
-}
-
-
-// ================================================================
-// 4. IN-APP NOTIFICATION — Save to database
-//    Always works, no external service needed
+// 3. IN-APP NOTIFICATION — Save to database (always works)
 // ================================================================
 async function createNotification(userId, title, message, type = 'info', data = {}) {
   try {
@@ -158,7 +220,7 @@ async function createNotification(userId, title, message, type = 'info', data = 
         userId,
         title,
         message,
-        type, // info, success, warning, error, transaction, verification
+        type,
         data,
       },
     });
@@ -173,8 +235,7 @@ async function createNotification(userId, title, message, type = 'info', data = 
 
 
 // ================================================================
-// 5. MULTI-CHANNEL NOTIFY — Send via all available channels
-//    In-app (always) + Push (if FCM configured) + Email (if Resend configured)
+// 4. MULTI-CHANNEL NOTIFY — In-app + Push + Email
 // ================================================================
 async function notifyUser(userId, { title, message, type = 'info', data = {}, email = false, push = false }) {
   const results = {};
@@ -182,10 +243,9 @@ async function notifyUser(userId, { title, message, type = 'info', data = {}, em
   // Always create in-app notification
   results.inApp = await createNotification(userId, title, message, type, data);
 
-  // Push notification (if FCM configured and user has device token)
-  if (push && process.env.FCM_SERVER_KEY) {
+  // Push notification (if FCM configured)
+  if (push && getServiceAccount()) {
     // TODO: Look up user's FCM device token from DB
-    // For now, just log
     console.log(`[Notify] Push queued for user ${userId}: "${title}"`);
     results.push = { success: true, message: 'Push queued' };
   }
@@ -282,7 +342,7 @@ async function notifyPropertyRejected(userId, propertyTitle, reason) {
 async function notifyFraudAlert(userId, reason) {
   return notifyUser(userId, {
     title: '🚨 Security Alert',
-    message: `Suspicious activity detected on your account: ${reason}. If this wasn't you, please contact support immediately.`,
+    message: `Suspicious activity detected on your account: ${reason}. If this wasn't you, contact support immediately.`,
     type: 'error',
     push: true,
     email: true,
@@ -295,10 +355,25 @@ async function notifyFraudAlert(userId, reason) {
 // ================================================================
 async function testConnection() {
   const results = {};
+  const sa = getServiceAccount();
 
-  results.fcm = process.env.FCM_SERVER_KEY
-    ? { connected: true, message: '✅ FCM ready (unlimited free push)' }
-    : { connected: false, message: '⚠️ FCM_SERVER_KEY not set — push notifications disabled' };
+  if (sa) {
+    try {
+      await getAccessToken();
+      results.fcm = {
+        connected: true,
+        projectId: sa.project_id,
+        message: `✅ FCM V1 connected (project: ${sa.project_id}) — unlimited free push`,
+      };
+    } catch (err) {
+      results.fcm = { connected: false, message: `❌ FCM auth failed: ${err.message}` };
+    }
+  } else {
+    results.fcm = {
+      connected: false,
+      message: '⚠️ Firebase not configured — set FIREBASE_SERVICE_ACCOUNT or FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY',
+    };
+  }
 
   results.inApp = { connected: true, message: '✅ In-app notifications always active' };
 
@@ -307,14 +382,10 @@ async function testConnection() {
 
 
 module.exports = {
-  // Core send functions
   sendPushToDevice,
   sendPushToTopic,
-  sendWebPush,
   createNotification,
   notifyUser,
-
-  // Pre-built templates
   notifyVerificationComplete,
   notifyNewTransaction,
   notifyEscrowUpdate,
@@ -322,8 +393,5 @@ module.exports = {
   notifyPropertyApproved,
   notifyPropertyRejected,
   notifyFraudAlert,
-
-  // Utils
-  generateVAPIDKeys,
   testConnection,
 };

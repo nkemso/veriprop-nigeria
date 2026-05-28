@@ -127,13 +127,15 @@ const config = {
   },
 
   // ============================================================
-  // FCM — PUSH NOTIFICATIONS (unlimited free forever)
-  // Setup: console.firebase.google.com → Create project
-  //        → Project Settings → Cloud Messaging → Server Key
+  // FCM V1 — PUSH NOTIFICATIONS (unlimited free forever)
+  // Setup: console.firebase.google.com → Project Settings
+  //        → Service Accounts → Generate new private key
+  //        → Set FIREBASE_SERVICE_ACCOUNT env var (JSON string)
+  //   OR set individual vars: FIREBASE_PROJECT_ID,
+  //      FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
   // ============================================================
   fcm: {
-    serverKey: process.env.FCM_SERVER_KEY,
-    enabled: !!(process.env.FCM_SERVER_KEY),
+    enabled: !!(process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_PROJECT_ID),
   },
 
   // ============================================================
