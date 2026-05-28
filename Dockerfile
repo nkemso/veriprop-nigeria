@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Use npm install instead of npm ci to avoid lock file sync issues
+# Use npm install (not npm ci) to avoid package-lock sync errors
 RUN npm install
 
 COPY . .
