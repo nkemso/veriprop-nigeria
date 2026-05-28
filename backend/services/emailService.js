@@ -214,7 +214,8 @@ async function testConnection() {
     return { connected: false, provider: 'resend', message: '⛔ RESEND_API_KEY not set. Get free key at resend.com' };
   }
   try {
-    const res = await fetch(`${RESEND_BASE}/domains`, {
+    const res = await fetch(`${RESEND_BASE}/api-keys`, {
+      method: 'GET',
       headers: { 'Authorization': `Bearer ${apiKey}` },
     });
     return {

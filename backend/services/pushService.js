@@ -34,20 +34,35 @@ let tokenExpiry = 0;
 
 function getServiceAccount() {
   // Try full JSON from env var
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (saJson) {
     try {
-      return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      // Railway may wrap the value in single quotes or add whitespace
+      const cleaned = saJson.trim().replace(/^'|'$/g, '');
+      const parsed = JSON.parse(cleaned);
+      // Fix private key newlines (Railway may escape them)
+      if (parsed.private_key) {
+        parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+      }
+      console.log('[FCM] Service account loaded from FIREBASE_SERVICE_ACCOUNT (project:', parsed.project_id, ')');
+      return parsed;
     } catch (e) {
-      console.error('[FCM] Invalid FIREBASE_SERVICE_ACCOUNT JSON');
+      console.error('[FCM] Failed to parse FIREBASE_SERVICE_ACCOUNT:', e.message);
+      console.error('[FCM] First 50 chars:', saJson.substring(0, 50));
     }
   }
 
   // Try individual vars
-  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+  if (projectId && clientEmail && privateKey) {
+    console.log('[FCM] Service account loaded from individual vars (project:', projectId, ')');
     return {
-      project_id: process.env.FIREBASE_PROJECT_ID,
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      project_id: projectId,
+      client_email: clientEmail,
+      private_key: privateKey.replace(/\\n/g, '\n'),
     };
   }
 
