@@ -1,16 +1,45 @@
 'use strict';
 
+/**
+ * ================================================================
+ * VERIPROP NIGERIA — PHASE 1: IDENTITY & VERIFICATION (PRODUCTION)
+ * ================================================================
+ * ZERO-TRUST POLICY:
+ *   - BVN verified against NIBSS via Didit Database Validation
+ *   - NIN verified against NIMC via Didit Database Validation
+ *   - Biometric verified via Didit Passive Liveness (real AI)
+ *   - NO simulations. NO demo modes. NO fallbacks that auto-pass.
+ *   - If Didit is not configured → verification FAILS with clear error.
+ * ================================================================
+ */
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const db = require('./db');
 const config = require('./config');
 const { generateTokens, authenticateToken, requireRole, ROLES } = require('./roleAuth');
-const { moderateUserProfile } = require('./aiModeration');
+const diditKYC = require('./diditKYCService');
 
 const authRouter = express.Router();
 const userRouter = express.Router();
 const verifyRouter = express.Router();
+
+// ============================================
+// HELPER — Hash sensitive data before storing
+// ============================================
+function hashSensitiveId(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+// ============================================
+// HELPER — Send welcome email (placeholder)
+// ============================================
+async function sendWelcomeEmail(user) {
+  // TODO: Wire to real email provider
+  console.log(`[Email] Welcome email queued for ${user.email}`);
+}
 
 // ============================================
 // AUTH ROUTES
@@ -63,7 +92,6 @@ authRouter.post('/register', [
 
     const { accessToken, refreshToken } = generateTokens(user);
 
-    // Send welcome email (async, don't await)
     sendWelcomeEmail(user).catch(console.error);
 
     res.status(201).json({
@@ -172,7 +200,6 @@ authRouter.post('/refresh', async (req, res) => {
 
 // Logout
 authRouter.post('/logout', authenticateToken, async (req, res) => {
-  // In production: blacklist the token in Redis
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
@@ -184,14 +211,13 @@ authRouter.post('/forgot-password', [
     const { email } = req.body;
     const user = await db.user.findUnique({ where: { email } });
 
-    // Always return success to prevent email enumeration
     if (user) {
-      const token = require('crypto').randomBytes(32).toString('hex');
+      const token = crypto.randomBytes(32).toString('hex');
       await db.passwordReset.create({
         data: {
           userId: user.id,
           token,
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
         },
       });
       // TODO: Send reset email
@@ -203,11 +229,11 @@ authRouter.post('/forgot-password', [
   }
 });
 
+
 // ============================================
 // USER ROUTES
 // ============================================
 
-// Get current user profile
 userRouter.get('/me', authenticateToken, async (req, res) => {
   try {
     const user = await db.user.findUnique({
@@ -221,7 +247,6 @@ userRouter.get('/me', authenticateToken, async (req, res) => {
         createdAt: true, lastLoginAt: true,
       },
     }).catch(async () => {
-      // Fallback if some fields don't exist
       return db.user.findUnique({
         where: { id: req.user.id },
         select: {
@@ -232,13 +257,12 @@ userRouter.get('/me', authenticateToken, async (req, res) => {
       });
     });
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    
-    // Get profile separately (may not exist)
+
     let profile = null;
     try {
       profile = await db.userProfile.findUnique({ where: { userId: req.user.id } });
     } catch(e) { /* profile table may not exist yet */ }
-    
+
     res.json({ success: true, user: { ...user, profile } });
   } catch (error) {
     console.error('Profile error:', error.message);
@@ -246,7 +270,6 @@ userRouter.get('/me', authenticateToken, async (req, res) => {
   }
 });
 
-// Update profile
 userRouter.put('/me', authenticateToken, [
   body('firstName').optional().trim().isLength({ min: 2 }),
   body('lastName').optional().trim().isLength({ min: 2 }),
@@ -279,98 +302,486 @@ userRouter.put('/me', authenticateToken, [
   }
 });
 
+
 // ============================================
-// VERIFICATION ROUTES
+// VERIFICATION ROUTES — REAL GOVERNMENT CHECKS
 // ============================================
 
-// Verify NIN
-verifyRouter.post('/nin', authenticateToken, [
-  body('nin').isLength({ min: 11, max: 11 }).isNumeric(),
+// ─── VERIFY BVN (Tier 1) ─────────────────────────────────────
+// Calls Didit Database Validation → nga_bank_verification_number
+// Checks against REAL NIBSS government database
+// Cost: $0.80 per successful query
+// ──────────────────────────────────────────────────────────────
+verifyRouter.post('/bvn', authenticateToken, [
+  body('bvn').isLength({ min: 11, max: 11 }).isNumeric()
+    .withMessage('BVN must be exactly 11 digits'),
 ], async (req, res) => {
   try {
-    const { nin } = req.body;
-    const isValid = nin.length === 11;
-
-    if (isValid) {
-      // SYNC update — wait for DB
-      await db.user.update({
-        where: { id: req.user.id },
-        data: {
-          verificationTier: 'TIER2_GOVT_ID',
-          ninVerified: true,
-          isVerified: true,
-        },
-      }).catch(err => {
-        return db.user.update({
-          where: { id: req.user.id },
-          data: { verificationTier: 'TIER2_GOVT_ID', isVerified: true },
-        });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: '❌ Invalid BVN format. Must be exactly 11 digits.',
+        errors: errors.array(),
       });
     }
 
-    const freshUser = await db.user.findUnique({
-      where: { id: req.user.id },
-      select: { id: true, verificationTier: true, isVerified: true },
+    const { bvn } = req.body;
+    const userId = req.user.id;
+
+    // Get user's name for cross-referencing with government database
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true, bvnVerified: true, bvnHash: true },
     });
 
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Prevent re-verification with a different BVN
+    if (user.bvnVerified && user.bvnHash) {
+      const submittedHash = hashSensitiveId(bvn);
+      if (user.bvnHash !== submittedHash) {
+        return res.status(403).json({
+          success: false,
+          message: '❌ A different BVN is already verified on this account. Contact support if this is an error.',
+        });
+      }
+      return res.json({
+        success: true,
+        message: '✅ BVN already verified.',
+        verificationTier: 'TIER1_BVN',
+        tier: 1,
+      });
+    }
+
+    // Check if this BVN is already used by another account
+    const bvnHash = hashSensitiveId(bvn);
+    const existingBvn = await db.user.findFirst({
+      where: { bvnHash, id: { not: userId } },
+      select: { id: true },
+    });
+
+    if (existingBvn) {
+      console.warn(`[BVN] Duplicate BVN attempt by user ${userId}. BVN already linked to another account.`);
+      return res.status(409).json({
+        success: false,
+        message: '❌ This BVN is already registered to another account. Each person can only have one VeriProp account.',
+      });
+    }
+
+    // ── REAL VERIFICATION via Didit ──
+    console.log(`[BVN] Verifying BVN for user ${userId} via Didit Database Validation...`);
+    const result = await diditKYC.verifyBVN(bvn, user.firstName, user.lastName);
+
+    if (!result.verified) {
+      // Log failed attempt
+      console.warn(`[BVN] Verification FAILED for user ${userId}: ${result.message}`);
+      return res.json({
+        success: false,
+        message: result.message || '❌ BVN verification failed. The BVN does not match our records.',
+        provider: result.provider,
+        verificationTier: 'NONE',
+        tier: 0,
+      });
+    }
+
+    // ── VERIFIED — Update database ──
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        bvnVerified: true,
+        bvnHash,
+        verificationTier: 'TIER1_BVN',
+      },
+    });
+
+    const freshUser = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, verificationTier: true, isVerified: true, bvnVerified: true },
+    });
+
+    console.log(`[BVN] ✅ BVN verified for user ${userId}`);
+
     return res.json({
-      success: isValid,
-      message: isValid ? '✅ NIN verified! Tier 2 unlocked.' : '❌ Invalid NIN. Must be 11 digits.',
-      verificationTier: freshUser?.verificationTier || (isValid ? 'TIER2_GOVT_ID' : 'TIER1_BVN'),
-      tier: isValid ? 2 : 1,
+      success: true,
+      message: '✅ BVN verified against NIBSS government database. Tier 1 unlocked!',
+      verificationTier: 'TIER1_BVN',
+      tier: 1,
+      provider: 'didit',
+      user: freshUser,
+    });
+  } catch (error) {
+    console.error('[BVN] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'BVN verification system error. Please try again later.',
+    });
+  }
+});
+
+
+// ─── VERIFY NIN (Tier 2) ─────────────────────────────────────
+// Calls Didit Database Validation → nga_national_id
+// Checks against REAL NIMC government database
+// Cost: $0.08 per successful query
+// ──────────────────────────────────────────────────────────────
+verifyRouter.post('/nin', authenticateToken, [
+  body('nin').isLength({ min: 11, max: 11 }).isNumeric()
+    .withMessage('NIN must be exactly 11 digits'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: '❌ Invalid NIN format. Must be exactly 11 digits.',
+        errors: errors.array(),
+      });
+    }
+
+    const { nin } = req.body;
+    const userId = req.user.id;
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true, ninVerified: true, ninHash: true, bvnVerified: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Enforce tier order: BVN must be verified first
+    if (!user.bvnVerified) {
+      return res.status(400).json({
+        success: false,
+        message: '❌ Please verify your BVN (Tier 1) before proceeding to NIN verification.',
+      });
+    }
+
+    // Prevent re-verification with a different NIN
+    if (user.ninVerified && user.ninHash) {
+      const submittedHash = hashSensitiveId(nin);
+      if (user.ninHash !== submittedHash) {
+        return res.status(403).json({
+          success: false,
+          message: '❌ A different NIN is already verified on this account. Contact support if this is an error.',
+        });
+      }
+      return res.json({
+        success: true,
+        message: '✅ NIN already verified.',
+        verificationTier: 'TIER2_GOVT_ID',
+        tier: 2,
+      });
+    }
+
+    // Check if this NIN is already used by another account
+    const ninHash = hashSensitiveId(nin);
+    const existingNin = await db.user.findFirst({
+      where: { ninHash, id: { not: userId } },
+      select: { id: true },
+    });
+
+    if (existingNin) {
+      console.warn(`[NIN] Duplicate NIN attempt by user ${userId}. NIN already linked to another account.`);
+      return res.status(409).json({
+        success: false,
+        message: '❌ This NIN is already registered to another account. Each person can only have one VeriProp account.',
+      });
+    }
+
+    // ── REAL VERIFICATION via Didit ──
+    console.log(`[NIN] Verifying NIN for user ${userId} via Didit Database Validation...`);
+    const result = await diditKYC.verifyNIN(nin, user.firstName, user.lastName);
+
+    if (!result.verified) {
+      console.warn(`[NIN] Verification FAILED for user ${userId}: ${result.message}`);
+      return res.json({
+        success: false,
+        message: result.message || '❌ NIN verification failed. The NIN does not match NIMC records.',
+        provider: result.provider,
+        verificationTier: 'TIER1_BVN',
+        tier: 1,
+      });
+    }
+
+    // ── VERIFIED — Update database ──
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        ninVerified: true,
+        ninHash,
+        verificationTier: 'TIER2_GOVT_ID',
+        isVerified: true,
+      },
+    });
+
+    const freshUser = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, verificationTier: true, isVerified: true, ninVerified: true },
+    });
+
+    console.log(`[NIN] ✅ NIN verified for user ${userId}`);
+
+    return res.json({
+      success: true,
+      message: '✅ NIN verified against NIMC government database. Tier 2 unlocked!',
+      verificationTier: 'TIER2_GOVT_ID',
+      tier: 2,
+      provider: 'didit',
       user: freshUser,
     });
   } catch (error) {
     console.error('[NIN] Error:', error.message);
-    return res.status(500).json({ success: false, message: 'NIN verification error: ' + error.message });
+    return res.status(500).json({
+      success: false,
+      message: 'NIN verification system error. Please try again later.',
+    });
   }
 });
 
-// Verify BVN
-verifyRouter.post('/bvn', authenticateToken, [
-  body('bvn').isLength({ min: 11, max: 11 }).isNumeric(),
-], async (req, res) => {
-  try {
-    const { bvn } = req.body;
-    const isValid = bvn.length === 11;
 
-    if (isValid) {
-      // Try DB update but NEVER fail if DB update fails
-      setImmediate(async () => {
-        try {
-          await db.user.update({
-            where: { id: req.user.id },
-            data: { verificationTier: 'TIER1_BVN' },
-          });
-        } catch (dbErr) {
-          console.warn('[BVN] Non-critical DB update failed:', dbErr.message);
-        }
+// ─── VERIFY BIOMETRIC (Tier 3) — Didit Passive Liveness ──────
+// Calls Didit /v3/passive-liveness/ — real AI liveness detection
+// NO fallbacks. NO demo modes. If Didit fails → user retries.
+// ──────────────────────────────────────────────────────────────
+verifyRouter.post('/biometric', authenticateToken, async (req, res) => {
+  try {
+    const { selfieImage } = req.body;
+
+    // Hard requirement: real base64 image
+    if (!selfieImage || selfieImage.length < 1000) {
+      return res.status(400).json({
+        success: false,
+        message: '❌ A real selfie image is required. Please capture your face clearly.',
       });
     }
 
-    // Always return immediately — don't wait for DB
+    const userId = req.user.id;
+
+    // Get user and check tier prerequisites
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { bvnVerified: true, ninVerified: true, notaryVerified: true, verificationTier: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Enforce tier order
+    if (!user.bvnVerified || !user.ninVerified) {
+      return res.status(400).json({
+        success: false,
+        message: '❌ Please complete BVN (Tier 1) and NIN (Tier 2) verification before biometric scan.',
+      });
+    }
+
+    if (user.notaryVerified) {
+      return res.json({
+        success: true,
+        message: '✅ Biometric already verified. You are Tier 3.',
+        verificationTier: 'TIER3_NOTARY',
+        tier: 3,
+      });
+    }
+
+    // ── REAL LIVENESS CHECK via Didit ──
+    console.log(`[Biometric] Running Didit passive liveness for user ${userId}...`);
+
+    const result = await diditKYC.checkPassiveLiveness(selfieImage);
+
+    if (!result.isLive) {
+      console.warn(`[Biometric] Liveness FAILED for user ${userId}: score=${result.score}, status=${result.status}`);
+      return res.json({
+        success: false,
+        message: result.message || '❌ Liveness check failed. Please ensure good lighting and try again.',
+        livenessScore: result.score || 0,
+        provider: 'didit',
+      });
+    }
+
+    // ── LIVENESS PASSED — Update database ──
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        notaryVerified: true,
+        notaryVerifiedAt: new Date(),
+        verificationTier: 'TIER3_NOTARY',
+        isVerified: true,
+      },
+    });
+
+    const freshUser = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, verificationTier: true, isVerified: true, notaryVerified: true },
+    });
+
+    console.log(`[Biometric] ✅ Liveness verified for user ${userId} (score: ${result.score})`);
+
     return res.json({
-      success: isValid,
-      message: isValid
-        ? '✅ BVN verified successfully! Tier 1 unlocked.'
-        : '❌ Invalid BVN. Must be exactly 11 digits.',
-      verificationTier: isValid ? 'TIER1_BVN' : 'NONE',
-      tier: isValid ? 1 : 0,
+      success: true,
+      message: '🎉 Biometric verified! You are now Tier 3 Verified.',
+      verificationTier: 'TIER3_NOTARY',
+      isVerified: true,
+      livenessScore: result.score,
+      provider: 'didit',
+      user: freshUser,
     });
   } catch (error) {
-    console.error('[BVN] Outer error:', error.message);
-    // Still return based on digit validation even if something else failed
-    const fallbackValid = (req.body?.bvn || '').length === 11;
-    return res.json({
-      success: fallbackValid,
-      message: fallbackValid ? '✅ BVN accepted.' : '❌ Invalid BVN.',
-      verificationTier: fallbackValid ? 'TIER1_BVN' : 'NONE',
-      tier: fallbackValid ? 1 : 0,
+    console.error('[Biometric] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: '❌ Biometric verification failed: ' + error.message,
     });
   }
 });
 
-// Verify phone (OTP)
+
+// ─── CREATE DIDIT KYC SESSION (Full hosted flow) ─────────────
+// Alternative path: redirect user to Didit's hosted UI for
+// full ID + Liveness + Face Match + IP Analysis
+// 500 FREE sessions/month
+// ──────────────────────────────────────────────────────────────
+verifyRouter.post('/kyc-session', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await diditKYC.createKYCSession(userId);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: '❌ Failed to create verification session: ' + (result.error || 'Unknown error'),
+      });
+    }
+
+    return res.json({
+      success: true,
+      sessionId: result.sessionId,
+      sessionUrl: result.sessionUrl,
+      message: 'Verification session created. Redirect user to sessionUrl.',
+      provider: 'didit',
+    });
+  } catch (error) {
+    console.error('[KYC Session] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: '❌ KYC session creation failed: ' + error.message,
+    });
+  }
+});
+
+
+// ─── DIDIT WEBHOOK — Receives verification results ──────────
+verifyRouter.post('/didit-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const rawBody = req.body.toString();
+    const signature = req.headers['x-signature-v2'];
+    const timestamp = req.headers['x-timestamp'];
+
+    // Verify webhook signature
+    if (!diditKYC.verifyWebhookSignature(rawBody, signature, timestamp)) {
+      console.error('[Didit Webhook] Invalid signature — rejecting');
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+
+    const payload = JSON.parse(rawBody);
+    const userId = payload.vendor_data;
+    const status = payload.status;
+
+    console.log(`[Didit Webhook] Session ${payload.session_id} for user ${userId}: ${status}`);
+
+    if (status === 'Approved') {
+      await db.user.update({
+        where: { id: userId },
+        data: {
+          notaryVerified: true,
+          notaryVerifiedAt: new Date(),
+          verificationTier: 'TIER3_NOTARY',
+          isVerified: true,
+        },
+      });
+      console.log(`[Didit Webhook] ✅ User ${userId} upgraded to TIER3_NOTARY`);
+    } else if (status === 'Declined') {
+      console.warn(`[Didit Webhook] ❌ User ${userId} verification declined`);
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('[Didit Webhook] Error:', error.message);
+    return res.status(500).json({ error: 'Webhook processing error' });
+  }
+});
+
+
+// ─── GET KYC SESSION RESULT ──────────────────────────────────
+verifyRouter.get('/kyc-session/:sessionId', authenticateToken, async (req, res) => {
+  try {
+    const result = await diditKYC.getSessionResult(req.params.sessionId);
+
+    return res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('[KYC Result] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: '❌ Failed to retrieve verification result: ' + error.message,
+    });
+  }
+});
+
+
+// ─── VERIFICATION STATUS ─────────────────────────────────────
+verifyRouter.get('/status', authenticateToken, async (req, res) => {
+  try {
+    const user = await db.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        verificationTier: true,
+        isVerified: true,
+        bvnVerified: true,
+        ninVerified: true,
+        notaryVerified: true,
+        phoneVerified: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Check Didit connectivity
+    const diditStatus = await diditKYC.testConnection();
+
+    return res.json({
+      success: true,
+      verification: {
+        tier: user.verificationTier,
+        isVerified: user.isVerified,
+        bvn: user.bvnVerified,
+        nin: user.ninVerified,
+        biometric: user.notaryVerified,
+        phone: user.phoneVerified,
+      },
+      didit: {
+        connected: diditStatus.connected,
+        mode: diditStatus.mode,
+        message: diditStatus.message,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Status check failed' });
+  }
+});
+
+
+// ─── PHONE OTP ───────────────────────────────────────────────
 verifyRouter.post('/phone/send-otp', authenticateToken, async (req, res) => {
   try {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -379,10 +790,10 @@ verifyRouter.post('/phone/send-otp', authenticateToken, async (req, res) => {
         userId: req.user.id,
         otp,
         type: 'phone',
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 min
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       },
     });
-    // TODO: Send OTP via Termii
+    // TODO: Send OTP via Termii / Didit Phone Verification
     console.log(`[OTP] ${req.user.id}: ${otp}`);
     res.json({ success: true, message: 'OTP sent to your phone number' });
   } catch (error) {
@@ -413,7 +824,7 @@ verifyRouter.post('/phone/verify-otp', authenticateToken, [
       db.otp.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
       db.user.update({
         where: { id: req.user.id },
-        data: { phoneVerified: true, isVerified: true },
+        data: { phoneVerified: true },
       }),
     ]);
 
@@ -422,152 +833,6 @@ verifyRouter.post('/phone/verify-otp', authenticateToken, [
     res.status(500).json({ success: false, message: 'OTP verification failed' });
   }
 });
-
-// ─── DIDIT KYC Biometric Verification (Tier 3) ───────────────
-// Didit: 500 FREE/month forever — business.didit.me
-verifyRouter.post('/biometric', authenticateToken, async (req, res) => {
-  try {
-    const { selfieImage, capturedAt } = req.body;
-    const config = require('./config');
-
-    // REQUIRE real selfie — no blank camera pass
-    if (!selfieImage || selfieImage.length < 500) {
-      return res.status(400).json({
-        success: false,
-        message: '❌ Selfie image required. Please complete the camera scan.',
-      });
-    }
-
-    let livenessScore = 0;
-    let isLive = false;
-    let provider = 'demo';
-
-    if (config.didit && config.didit.enabled && config.didit.apiKey) {
-      // Use Didit KYC — 500 FREE/month
-      try {
-        const diditKYC = require('./diditKYCService');
-        const result = await diditKYC.checkPassiveLiveness(selfieImage);
-        isLive = result.isLive;
-        livenessScore = result.score || 0;
-        provider = result.provider || 'didit';
-      } catch (err) {
-        console.error('[Biometric] Didit error:', err.message);
-        // Image-size validation fallback
-        const imgBuf = Buffer.from(selfieImage.replace(/^data:image\/[^;]+;base64,/, ''), 'base64');
-        isLive = imgBuf.length > 8000;
-        livenessScore = isLive ? 85 : 0;
-        provider = 'image_quality';
-      }
-    } else {
-      // No Didit key — validate image size
-      const imgBuf = Buffer.from(selfieImage.replace(/^data:image\/[^;]+;base64,/, ''), 'base64');
-      isLive = imgBuf.length > 8000;
-      livenessScore = isLive ? 90 : 0;
-      provider = 'demo_validation';
-    }
-
-    const passed = isLive && livenessScore >= 80;
-
-    if (passed) {
-      await db.user.update({
-        where: { id: req.user.id },
-        data: { notaryVerified: true, notaryVerifiedAt: new Date(), verificationTier: 'TIER3_NOTARY', isVerified: true },
-      }).catch(() => db.user.update({
-        where: { id: req.user.id },
-        data: { verificationTier: 'TIER3_NOTARY', isVerified: true },
-      }));
-    }
-
-    const freshUser = await db.user.findUnique({
-      where: { id: req.user.id },
-      select: { id: true, verificationTier: true, isVerified: true },
-    });
-
-    return res.json({
-      success: passed,
-      message: passed ? '🎉 Biometric verified! You are now Tier 3 Verified.' : '❌ Liveness check failed. Good lighting required.',
-      verificationTier: freshUser?.verificationTier || (passed ? 'TIER3_NOTARY' : 'TIER2_GOVT_ID'),
-      isVerified: freshUser?.isVerified || passed,
-      livenessScore,
-      provider,
-      user: freshUser,
-    });
-  } catch (error) {
-    console.error('[Biometric] Error:', error.message);
-    return res.status(500).json({ success: false, message: 'Biometric error: ' + error.message });
-  }
-});
-;
-
-// ─── ACCURASCAN Document OCR (Tier 2 enhancement) ────────────
-verifyRouter.post('/document-scan', authenticateToken, async (req, res) => {
-  try {
-    const { documentImage, documentType } = req.body;
-    if (!documentImage) {
-      return res.status(400).json({ success: false, message: 'Document image required' });
-    }
-    // Use Didit for document OCR
-    const config = require('./config');
-    let result;
-    if (config.didit?.enabled) {
-      const diditKYC = require('./diditKYCService');
-      result = await diditKYC.checkPassiveLiveness(documentImage).catch(() => ({
-        success: true, extractedData: {}, provider: 'demo'
-      }));
-    } else {
-      result = { success: true, extractedData: {}, confidence: 0.9, provider: 'demo' };
-    }
-    res.json({
-      success: result.success,
-      data: result.extractedData,
-      confidence: result.confidence,
-      provider: result.provider,
-      message: result.success ? 'Document scanned successfully' : 'Could not read document',
-    });
-  } catch (error) {
-    console.error('[DocumentScan]', error);
-    res.status(500).json({ success: false, message: 'Document scan error' });
-  }
-});
-
-// ─── ACCURASCAN Full KYC (Tier 3 with document + selfie) ─────
-verifyRouter.post('/full-kyc', authenticateToken, async (req, res) => {
-  try {
-    const { selfieImage, documentImage, documentType } = req.body;
-    if (!selfieImage || !documentImage) {
-      return res.status(400).json({ success: false, message: 'Both selfie and document image required' });
-    }
-    const config = require('./config');
-    let result;
-    if (config.didit?.enabled) {
-      const diditKYC = require('./diditKYCService');
-      result = await diditKYC.fullKYCVerification(selfieImage, documentImage, documentType || 'nin');
-    } else {
-      result = { overallPass: true, tier: 'TIER3_BIOMETRIC', provider: 'demo' };
-    }
-
-    if (result.overallPass) {
-      await db.user.update({
-        where: { id: req.user.id },
-        data: { notaryVerified: true, notaryVerifiedAt: new Date(), verificationTier: 'TIER3_NOTARY' },
-      });
-    }
-
-    res.json({
-      success: result.overallPass,
-      message: result.overallPass ? '✅ Full KYC verification passed!' : '❌ KYC verification failed',
-      tier: result.tier,
-      liveness: { passed: result.liveness?.isLive, score: result.liveness?.score },
-      document: { passed: result.document?.success, data: result.document?.extractedData },
-      faceMatch: result.faceMatch ? { passed: result.faceMatch?.isMatch, similarity: result.faceMatch?.similarity } : null,
-      provider: result.provider,
-    });
-  } catch (error) {
-    console.error('[FullKYC]', error);
-    res.status(500).json({ success: false, message: 'KYC system error' });
-  }
-});
-
 
 
 module.exports = { authRouter, userRouter, verifyRouter };

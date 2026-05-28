@@ -77,12 +77,11 @@ export default function BiometricVerification() {
 
     const runNext = () => {
       if (idx >= LIVENESS_PROMPTS.length) {
-        // Capture final selfie after all prompts
         const img = captureSelfie()
         if (img) setCapturedImage(img)
         stream?.getTracks().forEach(t => t.stop())
         setStep('checking')
-        submitToAccuraScan(img)
+        submitToDilit(img)
         return
       }
       setPromptIdx(idx)
@@ -94,8 +93,8 @@ export default function BiometricVerification() {
     runNext()
   }, [captureSelfie, stream])
 
-  // Submit to AccuraScan via backend
-  const submitToAccuraScan = useCallback(async (imageData: string | null) => {
+  // Submit to Didit KYC via backend — NO auto-pass on failure
+  const submitToDilit = useCallback(async (imageData: string | null) => {
     try {
       const res = await fetch(`${API}/api/v1/verify/biometric`, {
         method: 'POST',
@@ -112,25 +111,27 @@ export default function BiometricVerification() {
       const data = await res.json()
 
       if (data.success) {
-        setProvider(data.provider || 'accurascan')
-        setLivenessScore(data.livenessScore || 94)
+        setProvider(data.provider || 'didit')
+        setLivenessScore(data.livenessScore || 0)
         // Update local user state
         const user = JSON.parse(localStorage.getItem('user') || '{}')
         localStorage.setItem('user', JSON.stringify({
           ...user,
           notaryVerified: true,
           verificationTier: 'TIER3_NOTARY',
+          ...(data.user || {}),
         }))
+        window.dispatchEvent(new Event('userUpdated'))
         setStep('success')
       } else {
-        setError(data.message || 'Liveness check failed. Please try again.')
+        // ⛔ REAL FAILURE — do NOT auto-pass
+        setError(data.message || 'Liveness check failed. Please try again with better lighting.')
         setStep('failed')
       }
-    } catch {
-      // Network error — use demo mode
-      setProvider('accurascan_demo')
-      setLivenessScore(94)
-      setStep('success')
+    } catch (err) {
+      // ⛔ NETWORK ERROR — do NOT auto-pass. Fail safely.
+      setError('Network error. Please check your connection and try again. Verification cannot proceed offline.')
+      setStep('failed')
     }
   }, [token])
 
@@ -159,8 +160,8 @@ export default function BiometricVerification() {
       <nav style={{ background:'#161b22', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #21262d' }}>
         <a href="/" style={{ color:'#fff', fontWeight:800, textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Nigeria</span></a>
         <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
-          <img src="https://accurascan.com/wp-content/uploads/2021/09/accura-scan-logo.png" alt="AccuraScan" style={{ height:20, opacity:0.8 }} onError={e=>(e.target as HTMLImageElement).style.display='none'} />
-          <span style={{ color:'#10b981', fontSize:'0.7rem', fontWeight:700 }}>POWERED BY ACCURASCAN</span>
+          <span style={{ fontSize:'1.2rem' }}>🛡️</span>
+          <span style={{ color:'#10b981', fontSize:'0.7rem', fontWeight:700 }}>POWERED BY DIDIT KYC</span>
         </div>
       </nav>
 
@@ -169,16 +170,16 @@ export default function BiometricVerification() {
           <div style={{ fontSize:'4rem', marginBottom:'0.75rem' }}>🤳</div>
           <h1 style={{ fontWeight:900, fontSize:'1.75rem', margin:'0 0 0.5rem' }}>Selfie Liveness Check</h1>
           <p style={{ color:'#8b949e', lineHeight:1.7, margin:0 }}>
-            Powered by <strong style={{ color:'#60a5fa' }}>AccuraScan</strong> — certified AI biometric verification used by banks and fintechs worldwide.
+            Powered by <strong style={{ color:'#60a5fa' }}>Didit</strong> — certified AI biometric verification. Your selfie is verified in real-time against anti-spoofing AI.
           </p>
         </div>
 
-        {/* AccuraScan badge */}
+        {/* Security badge */}
         <div style={{ background:'rgba(29,78,216,0.1)', border:'1px solid rgba(29,78,216,0.3)', borderRadius:'0.875rem', padding:'1rem', marginBottom:'1.5rem', display:'flex', gap:'0.875rem', alignItems:'center' }}>
           <div style={{ fontSize:'2rem' }}>🛡️</div>
           <div>
-            <div style={{ fontWeight:700, color:'#60a5fa', fontSize:'0.875rem' }}>GDPR & ISO Certified</div>
-            <div style={{ color:'#8b949e', fontSize:'0.8rem' }}>AccuraScan processes biometrics in real-time. No data stored on servers per NDPR 2019.</div>
+            <div style={{ fontWeight:700, color:'#60a5fa', fontSize:'0.875rem' }}>Zero-Trust Biometric Verification</div>
+            <div style={{ color:'#8b949e', fontSize:'0.8rem' }}>Didit AI detects printed photos, screen replays, and masks. Only real, live persons pass. NDPR 2019 compliant.</div>
           </div>
         </div>
 
@@ -205,7 +206,7 @@ export default function BiometricVerification() {
 
         <button onClick={startCamera} disabled={!token}
           style={{ width:'100%', padding:'1rem', background: token ? '#10b981':'#21262d', color: token ? '#fff':'#6e7681', border:'none', borderRadius:'0.875rem', fontWeight:800, fontSize:'1.05rem', cursor: token ? 'pointer':'not-allowed', marginBottom:'0.75rem', boxShadow: token ? '0 8px 24px rgba(16,185,129,0.3)':'none' }}>
-          🤳 Start AccuraScan Verification →
+          🤳 Start Didit Biometric Verification →
         </button>
         <a href="/verify" style={{ display:'block', color:'#6e7681', fontSize:'0.8rem', textDecoration:'none', textAlign:'center' }}>← Back to Verification Hub</a>
       </div>
@@ -221,43 +222,29 @@ export default function BiometricVerification() {
       </nav>
       <div style={{ maxWidth:520, margin:'0 auto', padding:'1.5rem 1rem' }}>
         <div style={{ textAlign:'center', marginBottom:'1rem' }}>
-          <h2 style={{ fontWeight:800 }}>Position Your Face</h2>
-          <p style={{ color: faceDetected ? '#10b981':'#8b949e', fontSize:'0.875rem', fontWeight: faceDetected ? 600:400 }}>
-            {faceDetected ? '✅ Face detected — ready to scan!' : '👀 Move your face into the oval frame...'}
-          </p>
+          <h2 style={{ fontWeight:800, margin:0 }}>Position Your Face</h2>
+          <p style={{ color:'#8b949e', fontSize:'0.8rem', margin:'0.25rem 0 0' }}>Center your face in the frame. Good lighting required.</p>
         </div>
 
-        <div style={{ position:'relative', maxWidth:440, margin:'0 auto 1.5rem', borderRadius:'1rem', overflow:'hidden', background:'#000', aspectRatio:'4/3' }}>
+        <div style={{ position:'relative', width:'100%', borderRadius:'1rem', overflow:'hidden', background:'#000', aspectRatio:'4/3', marginBottom:'1.5rem' }}>
           <video ref={videoRef} autoPlay muted playsInline style={{ width:'100%', height:'100%', objectFit:'cover', transform:'scaleX(-1)', display:'block' }} />
-          {/* Oval face guide */}
+          {/* Face guide overlay */}
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
-            <div style={{ width:220, height:280, borderRadius:'50%', border:`3px solid ${faceDetected ? '#10b981':'rgba(255,255,255,0.4)'}`, boxShadow: faceDetected ? '0 0 0 4px rgba(16,185,129,0.2)':'none', transition:'all 0.5s' }} />
+            <div style={{ width:'55%', aspectRatio:'3/4', border:`3px dashed ${faceDetected ? '#10b981':'#f59e0b'}`, borderRadius:'50%', opacity:0.7 }} />
           </div>
-          {/* Live badge */}
-          <div style={{ position:'absolute', top:12, left:12, display:'flex', alignItems:'center', gap:'0.35rem', background:'rgba(0,0,0,0.6)', padding:'0.25rem 0.6rem', borderRadius:'999px' }}>
-            <span style={{ width:6, height:6, borderRadius:'50%', background:'#ef4444', display:'inline-block' }} />
-            <span style={{ color:'#fff', fontSize:'0.65rem', fontWeight:700 }}>LIVE</span>
-          </div>
-          {/* AccuraScan watermark */}
-          <div style={{ position:'absolute', bottom:8, right:8, color:'rgba(255,255,255,0.5)', fontSize:'0.6rem' }}>AccuraScan AI</div>
+          <div style={{ position:'absolute', bottom:8, right:8, color:'rgba(255,255,255,0.5)', fontSize:'0.6rem' }}>Didit AI</div>
         </div>
 
-        <canvas ref={canvasRef} style={{ display:'none' }} />
-
-        {/* Countdown or Start button */}
-        {countdown < 3 && countdown > 0 ? (
-          <div style={{ textAlign:'center', fontSize:'4rem', fontWeight:900, color:'#10b981' }}>{countdown}</div>
-        ) : (
-          <button onClick={startCountdown} disabled={!faceDetected}
-            style={{ width:'100%', padding:'1rem', background: faceDetected ? '#10b981':'#21262d', color: faceDetected ? '#fff':'#6e7681', border:'none', borderRadius:'0.875rem', fontWeight:800, fontSize:'1.05rem', cursor: faceDetected ? 'pointer':'not-allowed', transition:'all 0.3s' }}>
-            {faceDetected ? '📸 Begin AccuraScan Liveness Check →' : '⏳ Detecting face...'}
-          </button>
-        )}
+        <button onClick={startCountdown} disabled={!faceDetected}
+          style={{ width:'100%', padding:'1rem', background: faceDetected ? '#10b981':'#21262d', color: faceDetected ? '#fff':'#6e7681', border:'none', borderRadius:'0.875rem', fontWeight:800, cursor: faceDetected ? 'pointer':'not-allowed', fontSize:'1rem' }}>
+          {faceDetected ? '📸 Begin Didit Liveness Check →' : '⏳ Detecting face...'}
+        </button>
       </div>
+      <canvas ref={canvasRef} style={{ display:'none' }} />
     </div>
   )
 
-  // ── LIVENESS CHECK RUNNING ────────────────────────────────────
+  // ── LIVENESS ──────────────────────────────────────────────────
   if (step === 'liveness') return (
     <div style={{ minHeight:'100vh', background:'#0d1117', ...S, color:'#f0f6fc', display:'flex', flexDirection:'column' }}>
       <nav style={{ background:'#161b22', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #21262d' }}>
@@ -265,19 +252,16 @@ export default function BiometricVerification() {
         <span style={{ color:'#10b981', fontSize:'0.7rem', fontWeight:700 }}>SCANNING...</span>
       </nav>
       <div style={{ maxWidth:440, margin:'0 auto', padding:'1.5rem 1rem', flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
-        {/* Camera still showing */}
         <div style={{ position:'relative', width:'100%', borderRadius:'1rem', overflow:'hidden', background:'#000', aspectRatio:'4/3', marginBottom:'1.5rem' }}>
           <video ref={videoRef} autoPlay muted playsInline style={{ width:'100%', height:'100%', objectFit:'cover', transform:'scaleX(-1)', display:'block' }} />
           <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <div style={{ fontSize:'3rem' }}>{LIVENESS_PROMPTS[Math.min(promptIdx, LIVENESS_PROMPTS.length-1)]?.icon}</div>
           </div>
-          {/* Progress bar on camera */}
           <div style={{ position:'absolute', bottom:0, left:0, right:0, height:4, background:'rgba(255,255,255,0.2)' }}>
             <div style={{ height:'100%', background:'#10b981', width:`${progress}%`, transition:'width 0.3s' }} />
           </div>
         </div>
 
-        {/* Current prompt */}
         <div style={{ background:'#161b22', border:'1px solid #21262d', borderRadius:'1rem', padding:'1.25rem', width:'100%', textAlign:'center' }}>
           <div style={{ fontSize:'2.5rem', marginBottom:'0.5rem' }}>{LIVENESS_PROMPTS[Math.min(promptIdx, LIVENESS_PROMPTS.length-1)]?.icon}</div>
           <div style={{ fontWeight:800, fontSize:'1.1rem', marginBottom:'0.5rem' }}>{LIVENESS_PROMPTS[Math.min(promptIdx, LIVENESS_PROMPTS.length-1)]?.text}</div>
@@ -303,19 +287,19 @@ export default function BiometricVerification() {
         </div>
       )}
       <div style={{ fontSize:'2.5rem', marginBottom:'1rem' }}>🔍</div>
-      <h2 style={{ fontWeight:800, marginBottom:'0.5rem' }}>AccuraScan Analyzing...</h2>
+      <h2 style={{ fontWeight:800, marginBottom:'0.5rem' }}>Didit AI Analyzing...</h2>
       <p style={{ color:'#8b949e', marginBottom:'2rem', fontSize:'0.875rem', textAlign:'center' }}>
-        AI is verifying your liveness and identity. This takes a few seconds.
+        Real AI is verifying your liveness. No simulations — this is a genuine check.
       </p>
       <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem', width:'100%', maxWidth:360 }}>
-        {['Liveness detection', 'Anti-spoofing check', 'Face quality analysis', 'Identity verification'].map((check, i) => (
+        {['Anti-spoofing detection', 'Passive liveness analysis', 'Face quality verification', 'Identity confirmation'].map((check) => (
           <div key={check} style={{ display:'flex', alignItems:'center', gap:'0.75rem', background:'#161b22', padding:'0.75rem 1rem', borderRadius:'0.5rem', border:'1px solid #21262d' }}>
             <div style={{ width:20, height:20, borderRadius:'50%', border:'2px solid #10b981', borderTopColor:'transparent', animation:'spin 1s linear infinite', flexShrink:0 }} />
             <span style={{ fontSize:'0.875rem', color:'#8b949e' }}>{check}...</span>
           </div>
         ))}
       </div>
-      <p style={{ color:'#6e7681', fontSize:'0.7rem', marginTop:'1.5rem' }}>Powered by AccuraScan AI · GDPR Compliant</p>
+      <p style={{ color:'#6e7681', fontSize:'0.7rem', marginTop:'1.5rem' }}>Powered by Didit AI · NDPR Compliant</p>
     </div>
   )
 
@@ -333,14 +317,13 @@ export default function BiometricVerification() {
       <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>🎉</div>
       <h1 style={{ fontWeight:900, color:'#10b981', marginBottom:'0.5rem', fontSize:'1.75rem' }}>Biometrically Verified!</h1>
       <p style={{ color:'#8b949e', marginBottom:'1.5rem', fontSize:'0.875rem', textAlign:'center' }}>
-        AccuraScan has confirmed your identity. You are now <strong style={{ color:'#10b981' }}>Tier 3 Verified</strong>.
+        Didit AI has confirmed your identity. You are now <strong style={{ color:'#10b981' }}>Tier 3 Verified</strong>.
       </p>
 
-      {/* Verification details */}
       <div style={{ background:'rgba(16,185,129,0.1)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:'1rem', padding:'1.25rem', marginBottom:'1.5rem', width:'100%', maxWidth:400 }}>
         <div style={{ display:'flex', justifyContent:'space-between', padding:'0.4rem 0', fontSize:'0.8rem', borderBottom:'1px solid rgba(16,185,129,0.2)' }}>
           <span style={{ color:'#8b949e' }}>Verification Provider</span>
-          <span style={{ color:'#10b981', fontWeight:700 }}>AccuraScan AI</span>
+          <span style={{ color:'#10b981', fontWeight:700 }}>Didit AI</span>
         </div>
         <div style={{ display:'flex', justifyContent:'space-between', padding:'0.4rem 0', fontSize:'0.8rem', borderBottom:'1px solid rgba(16,185,129,0.2)' }}>
           <span style={{ color:'#8b949e' }}>Liveness Score</span>
@@ -356,7 +339,6 @@ export default function BiometricVerification() {
         </div>
       </div>
 
-      {/* Benefits unlocked */}
       <div style={{ width:'100%', maxWidth:400, marginBottom:'1.5rem' }}>
         {['Full marketplace access', 'High-value escrow transactions', 'Multi-sig transaction rights', 'Biometric Trustmark badge', 'Priority listing visibility'].map(b => (
           <div key={b} style={{ color:'#f0f6fc', fontSize:'0.8rem', padding:'0.3rem 0', display:'flex', gap:'0.5rem' }}>
@@ -380,7 +362,7 @@ export default function BiometricVerification() {
       <div style={{ fontSize:'3.5rem', marginBottom:'1rem' }}>❌</div>
       <h2 style={{ fontWeight:800, color:'#ef4444', marginBottom:'0.5rem' }}>Verification Failed</h2>
       <p style={{ color:'#8b949e', marginBottom:'2rem', lineHeight:1.7, fontSize:'0.875rem', textAlign:'center', maxWidth:380 }}>
-        {error || 'AccuraScan could not verify your liveness. Please ensure good lighting and try again.'}
+        {error || 'Didit AI could not verify your liveness. Please ensure good lighting and try again.'}
       </p>
       <div style={{ background:'#161b22', border:'1px solid #21262d', borderRadius:'0.875rem', padding:'1.25rem', marginBottom:'1.5rem', width:'100%', maxWidth:380 }}>
         <div style={{ fontWeight:700, color:'#f0f6fc', marginBottom:'0.75rem', fontSize:'0.875rem' }}>Tips for success:</div>

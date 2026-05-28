@@ -224,7 +224,7 @@ export default function VerificationHub() {
                         style={inp}
                       />
                       <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.5rem', marginBottom: '1rem' }}>
-                        🔒 Your BVN is encrypted and never stored in plain text. We use NIBSS for verification.
+                        🔒 Your BVN is encrypted and never stored in plain text. Verified in real-time against NIBSS government database via Didit KYC.
                       </p>
                       {/* Visual digit counter */}
                       <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1rem' }}>
@@ -302,7 +302,7 @@ export default function VerificationHub() {
                       )}
 
                       <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.5rem', marginBottom: '1rem' }}>
-                        🔒 Your ID details are encrypted and verified securely via NIBSS / Smile Identity.
+                        🔒 Your ID details are encrypted and verified against NIMC government database via Didit KYC.
                       </p>
 
                       <button
