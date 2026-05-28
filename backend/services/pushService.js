@@ -60,7 +60,11 @@ function getServiceAccount() {
 
   // Option A: Base64-encoded private key (recommended for Railway)
   if (projectId && clientEmail && privateKeyB64) {
-    const pk = Buffer.from(privateKeyB64, 'base64').toString('utf-8');
+    let pk = Buffer.from(privateKeyB64, 'base64').toString('utf-8');
+    // Ensure real newlines (the JSON value may have literal \n strings)
+    if (pk.includes('\\n')) pk = pk.replace(/\\n/g, '\n');
+    // Some encoders strip trailing newline — ensure key ends properly
+    if (!pk.endsWith('\n')) pk += '\n';
     console.log('[FCM] Service account loaded via Base64 key (project:', projectId, ')');
     return {
       project_id: projectId,
