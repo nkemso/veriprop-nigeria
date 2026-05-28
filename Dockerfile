@@ -1,13 +1,13 @@
 FROM node:20-alpine
 
-# Cache bust: 2026-05-28
 RUN apk add --no-cache openssl libc6-compat
 
 WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --legacy-peer-deps
+# Use npm install instead of npm ci to avoid lock file sync issues
+RUN npm install
 
 COPY . .
 
