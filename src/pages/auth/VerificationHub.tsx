@@ -387,24 +387,8 @@ export default function VerificationHub() {
                         {kycLoading ? '⏳ Creating session...' : '🛡️ Start Document Verification →'}
                       </button>
 
-                      <div style={{ textAlign: 'center', margin: '1rem 0 0.5rem', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>— OR —</div>
-
-                      <a
-                        href="/verify/biometric"
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                          display: 'block', width: '100%', padding: '0.875rem',
-                          background: '#1d4ed8', color: '#fff', border: 'none',
-                          borderRadius: '0.5rem', fontWeight: 700, fontSize: '1rem',
-                          cursor: 'pointer', textDecoration: 'none', textAlign: 'center',
-                          boxSizing: 'border-box',
-                        }}
-                      >
-                        🤳 Selfie Liveness Check Instead →
-                      </a>
-
                       <p style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '0.75rem', textAlign: 'center' }}>
-                        Document scan redirects to Didit's secure page. Selfie check uses your phone camera directly. Both are powered by Didit AI.
+                        You'll be redirected to Didit's secure page for document scan + selfie + face match. This is required to list properties or start negotiations.
                       </p>
                     </div>
                   )}

@@ -49,7 +49,8 @@ chatRouter.get('/rooms', requireAuth, async (req, res) => {
 });
 
 // ─── GET OR CREATE CHAT ROOM FOR TRANSACTION ─────────────────
-chatRouter.post('/rooms/transaction/:transactionId', requireAuth, requireTier('TIER1_BVN'), async (req, res) => {
+chatRouter.post('/rooms/transaction/:transactionId', requireAuth, requireTier('TIER3_NOTARY'), // 🔒 Must complete full Didit KYC to initiate chat
+async (req, res) => {
   try {
     const { transactionId } = req.params;
 
@@ -142,7 +143,7 @@ chatRouter.get('/rooms/:roomId/messages', requireAuth, async (req, res) => {
 chatRouter.post(
   '/rooms/:roomId/messages',
   requireAuth,
-  requireTier('TIER1_BVN'),
+  requireTier('TIER3_NOTARY'), // 🔒 Must complete full Didit KYC to send messages
   chatRedactionMiddleware,    // ← AI Redaction applied here
   async (req, res) => {
     try {

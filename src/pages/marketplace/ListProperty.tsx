@@ -10,6 +10,9 @@ export default function ListProperty() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
+  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  const isVerified = user.verificationTier === 'TIER3_NOTARY' || user.notaryVerified
+
   if (!token) {
     return (
       <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter,sans-serif', flexDirection:'column', gap:'1rem' }}>
@@ -17,6 +20,21 @@ export default function ListProperty() {
         <h2 style={{ color:'#1e3a5f' }}>Login Required</h2>
         <p style={{ color:'#64748b' }}>You must be logged in to list a property</p>
         <a href="/login" style={{ background:'#1d4ed8', color:'#fff', padding:'0.75rem 1.5rem', borderRadius:'0.75rem', fontWeight:700, textDecoration:'none' }}>Sign In →</a>
+      </div>
+    )
+  }
+
+  if (!isVerified) {
+    return (
+      <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter,sans-serif', flexDirection:'column', gap:'1rem', background:'#fffbeb', padding:'2rem' }}>
+        <div style={{ fontSize:'3rem' }}>🛡️</div>
+        <h2 style={{ color:'#92400e', fontWeight:800 }}>Identity Verification Required</h2>
+        <p style={{ color:'#78350f', textAlign:'center', maxWidth:400, lineHeight:1.7 }}>
+          To list properties on VeriProp, you must complete full identity verification (BVN + NIN + Document Scan).
+          This protects buyers from fraud and ensures trust on the platform.
+        </p>
+        <a href="/verify" style={{ background:'#d97706', color:'#fff', padding:'0.75rem 1.5rem', borderRadius:'0.75rem', fontWeight:700, textDecoration:'none', fontSize:'1rem' }}>🛡️ Complete Verification →</a>
+        <a href="/dashboard" style={{ color:'#92400e', textDecoration:'none', fontSize:'0.8rem', marginTop:'0.5rem' }}>← Back to Dashboard</a>
       </div>
     )
   }

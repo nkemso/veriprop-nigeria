@@ -4,6 +4,7 @@ const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const db = require('./db');
 const { authenticateToken, optionalAuth, requirePermission, PERMISSIONS } = require('./roleAuth');
+const { requireTier } = require('./middleware/requireAuth');
 const { moderateListing } = require('./aiModeration');
 
 const propertyRouter = express.Router();
@@ -141,6 +142,7 @@ propertyRouter.get('/:id', optionalAuth, async (req, res) => {
 // Create property listing
 propertyRouter.post('/', authenticateToken,
   requirePermission(PERMISSIONS.PROPERTY_CREATE),
+  requireTier('TIER3_NOTARY'),  // 🔒 Must complete full Didit KYC to list properties
   [
     body('title').trim().isLength({ min: 10, max: 200 }),
     body('description').trim().isLength({ min: 50 }),
