@@ -58,11 +58,16 @@ function getServiceAccount() {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (projectId && clientEmail && privateKey) {
+    // Railway may store the key with literal \n or real newlines — handle both
+    let pk = privateKey;
+    if (!pk.includes('\n') || pk.includes('\\n')) {
+      pk = pk.replace(/\\n/g, '\n');
+    }
     console.log('[FCM] Service account loaded from individual vars (project:', projectId, ')');
     return {
       project_id: projectId,
       client_email: clientEmail,
-      private_key: privateKey.replace(/\\n/g, '\n'),
+      private_key: pk,
     };
   }
 
