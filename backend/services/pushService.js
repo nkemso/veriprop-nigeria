@@ -56,14 +56,26 @@ function getServiceAccount() {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  const privateKeyB64 = process.env.FIREBASE_PRIVATE_KEY_B64;
 
+  // Option A: Base64-encoded private key (recommended for Railway)
+  if (projectId && clientEmail && privateKeyB64) {
+    const pk = Buffer.from(privateKeyB64, 'base64').toString('utf-8');
+    console.log('[FCM] Service account loaded via Base64 key (project:', projectId, ')');
+    return {
+      project_id: projectId,
+      client_email: clientEmail,
+      private_key: pk,
+    };
+  }
+
+  // Option B: Raw private key
   if (projectId && clientEmail && privateKey) {
-    // Railway may store the key with literal \n or real newlines — handle both
     let pk = privateKey;
     if (!pk.includes('\n') || pk.includes('\\n')) {
       pk = pk.replace(/\\n/g, '\n');
     }
-    console.log('[FCM] Service account loaded from individual vars (project:', projectId, ')');
+    console.log('[FCM] Service account loaded from raw key (project:', projectId, ')');
     return {
       project_id: projectId,
       client_email: clientEmail,
