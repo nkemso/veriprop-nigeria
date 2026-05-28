@@ -323,21 +323,37 @@ userRouter.put('/me', authenticateToken, [
 // NO paid API call — just format validation + duplicate check.
 // ──────────────────────────────────────────────────────────────
 verifyRouter.post('/bvn', authenticateToken, [
-  body('bvn').isLength({ min: 11, max: 11 }).isNumeric()
-    .withMessage('BVN must be exactly 11 digits'),
+  body('bvn').isLength({ min: 11, max: 11 }).isNumeric().matches(/^22\d{9}$/)
+    .withMessage('BVN must be exactly 11 digits and start with 22'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: '❌ Invalid BVN format. Must be exactly 11 digits.',
+        message: '❌ Invalid BVN. Must be exactly 11 digits starting with 22.',
         errors: errors.array(),
       });
     }
 
     const { bvn } = req.body;
     const userId = req.user.id;
+
+    // ── STRUCTURAL VALIDATION ──
+    // Real Nigerian BVNs always start with "22"
+    if (!/^22\d{9}$/.test(bvn)) {
+      return res.status(400).json({
+        success: false,
+        message: '❌ Invalid BVN. Nigerian BVNs are 11 digits starting with 22.',
+      });
+    }
+    // Reject obviously fake patterns (all same digit, sequential)
+    if (/^(\d)\1{10}$/.test(bvn) || bvn === '22222222222') {
+      return res.status(400).json({
+        success: false,
+        message: '❌ Invalid BVN. Please enter your real Bank Verification Number.',
+      });
+    }
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -424,6 +440,22 @@ verifyRouter.post('/nin', authenticateToken, [
 
     const { nin } = req.body;
     const userId = req.user.id;
+
+    // ── STRUCTURAL VALIDATION ──
+    // Nigerian NINs are 11 digits, no fixed prefix but reject fake patterns
+    if (!/^\d{11}$/.test(nin)) {
+      return res.status(400).json({
+        success: false,
+        message: '❌ Invalid NIN. Must be exactly 11 digits.',
+      });
+    }
+    // Reject obviously fake patterns (all same digit, sequential, etc.)
+    if (/^(\d)\1{10}$/.test(nin) || /^(01234567890|12345678901|98765432109|00000000000)$/.test(nin)) {
+      return res.status(400).json({
+        success: false,
+        message: '❌ Invalid NIN. Please enter your real National Identity Number.',
+      });
+    }
 
     const user = await db.user.findUnique({
       where: { id: userId },

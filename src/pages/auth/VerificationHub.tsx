@@ -261,12 +261,12 @@ export default function VerificationHub() {
                         }}
                         onFocus={e => e.stopPropagation()}
                         onClick={e => e.stopPropagation()}
-                        placeholder="e.g. 12345678901"
+                        placeholder="e.g. 22123456789"
                         autoComplete="off"
                         style={inp}
                       />
                       <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.5rem', marginBottom: '1rem' }}>
-                        🔒 Your BVN is encrypted (SHA-256 hash) and never stored in plain text. It will be cross-verified when you scan your ID document in Step 3.
+                        🔒 Nigerian BVNs start with 22 and are exactly 11 digits. Your BVN is encrypted (SHA-256) and never stored in plain text.
                       </p>
                       <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1rem' }}>
                         {Array.from({ length: 11 }).map((_, i) => (
@@ -387,8 +387,24 @@ export default function VerificationHub() {
                         {kycLoading ? '⏳ Creating session...' : '🛡️ Start Document Verification →'}
                       </button>
 
+                      <div style={{ textAlign: 'center', margin: '1rem 0 0.5rem', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>— OR —</div>
+
+                      <a
+                        href="/verify/biometric"
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          display: 'block', width: '100%', padding: '0.875rem',
+                          background: '#1d4ed8', color: '#fff', border: 'none',
+                          borderRadius: '0.5rem', fontWeight: 700, fontSize: '1rem',
+                          cursor: 'pointer', textDecoration: 'none', textAlign: 'center',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        🤳 Selfie Liveness Check Instead →
+                      </a>
+
                       <p style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '0.75rem', textAlign: 'center' }}>
-                        You'll be redirected to Didit's secure page. After verification, you'll be sent back here automatically.
+                        Document scan redirects to Didit's secure page. Selfie check uses your phone camera directly. Both are powered by Didit AI.
                       </p>
                     </div>
                   )}

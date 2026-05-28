@@ -6,26 +6,19 @@
  * ================================================================
  * ZERO-TRUST using Didit's FREE session-based KYC:
  *
- *   ✅ ID Verification  — OCR extracts NIN/BVN from document photo   FREE
- *   ✅ Passive Liveness  — AI confirms real person, not photo/mask    FREE
- *   ✅ Face Match         — selfie matches document portrait photo     FREE
- *   ✅ IP Analysis        — flags VPNs, proxies, Tor                  FREE
+ *   ✅ OCR               — Scans ID document, extracts data            FREE
+ *   ✅ LIVENESS           — AI confirms real person, not photo/mask     FREE
+ *   ✅ FACE_MATCH         — Selfie matches document portrait photo      FREE
+ *   ✅ IP_ANALYSIS        — Flags VPNs, proxies, Tor                   FREE
  *
  *   500 FREE sessions/month forever. $0.33/session after that.
  *   No simulations. No fallbacks. No demo modes.
  *
- * HOW IT WORKS:
- *   1. Backend creates a Didit session → gets session_url
- *   2. User is redirected to Didit's hosted UI
- *   3. User scans their NIN slip / ID card + takes selfie
- *   4. Didit does OCR + Liveness + Face Match + IP Analysis
- *   5. Webhook fires with Approved/Declined → we update user tier
- *
- * This is STRONGER than just checking a number against a database:
- *   - Proves the user PHYSICALLY POSSESSES the ID document
- *   - Proves the user's FACE MATCHES the document photo
- *   - Proves the user is a REAL LIVE PERSON (not a printed photo)
- *   - Extracts the NIN/BVN number via OCR (can't fake the document)
+ * ALLOWED WORKFLOW FEATURES (from Didit API):
+ *   AGE_ESTIMATION, AML, DATABASE_VALIDATION, EMAIL_VERIFICATION,
+ *   FACE_MATCH, IP_ANALYSIS, KYB_DOCUMENTS, KYB_KEY_PEOPLE,
+ *   KYB_REGISTRY, LIVENESS, NFC, OCR, PHONE_VERIFICATION,
+ *   PROOF_OF_ADDRESS, QUESTIONNAIRE
  *
  * GET YOUR KEY: business.didit.me (60-second signup, no credit card)
  * ================================================================
@@ -78,8 +71,11 @@ async function diditFetchJSON(endpoint, method = 'POST', body = null) {
 
 // ================================================================
 // 1. CREATE / GET WORKFLOW — One-time setup
-//    Features: ID_VERIFICATION + LIVENESS + FACE_MATCH + IP_ANALYSIS
+//    Features: OCR + LIVENESS + FACE_MATCH + IP_ANALYSIS
 //    All 4 features are FREE (500 sessions/month)
+//
+//    NOTE: Didit API accepts "OCR" (not "ID_VERIFICATION")
+//    for document scanning in workflow features.
 // ================================================================
 async function getOrCreateWorkflow() {
   if (cachedWorkflowId) return cachedWorkflowId;
@@ -94,11 +90,10 @@ async function getOrCreateWorkflow() {
     // Try to list existing workflows first
     const existing = await diditFetchJSON('/workflows/', 'GET');
     if (Array.isArray(existing) && existing.length > 0) {
-      // Use the first workflow that has all 4 features
-      const suitable = existing.find(w =>
-        w.features?.includes('ID_VERIFICATION') &&
-        w.features?.includes('LIVENESS')
-      );
+      const suitable = existing.find(w => {
+        const features = w.features || [];
+        return features.includes('OCR') && features.includes('LIVENESS');
+      });
       if (suitable) {
         cachedWorkflowId = suitable.uuid || suitable.id;
         console.log('[Didit] Using existing workflow:', cachedWorkflowId);
@@ -106,21 +101,21 @@ async function getOrCreateWorkflow() {
       }
     }
   } catch (e) {
-    // Listing failed, create new
+    console.log('[Didit] Could not list workflows, creating new one...');
   }
 
   try {
     const data = await diditFetchJSON('/workflows/', 'POST', {
       workflow_label: 'VeriProp Nigeria KYC',
       features: [
-        { feature: 'ID_VERIFICATION' },
+        { feature: 'OCR' },
         { feature: 'LIVENESS' },
         { feature: 'FACE_MATCH' },
         { feature: 'IP_ANALYSIS' },
       ],
     });
     cachedWorkflowId = data.uuid || data.id;
-    console.log('[Didit] Workflow created:', cachedWorkflowId);
+    console.log('[Didit] ✅ Workflow created:', cachedWorkflowId);
     return cachedWorkflowId;
   } catch (err) {
     console.error('[Didit] Workflow creation failed:', err.message);
@@ -167,7 +162,6 @@ async function createKYCSession(userId, callbackUrl) {
 
 // ================================================================
 // 3. GET SESSION RESULT — After user completes verification
-//    Called by webhook or by polling
 // ================================================================
 async function getSessionResult(sessionId) {
   requireApiKey();
@@ -177,7 +171,6 @@ async function getSessionResult(sessionId) {
   const status = data.status;
   const approved = status === 'Approved';
 
-  // Extract per-feature results
   const idVerif = data.id_verifications?.[0] || {};
   const liveness = data.liveness_checks?.[0] || {};
   const faceMatch = data.face_matches?.[0] || {};
@@ -188,7 +181,7 @@ async function getSessionResult(sessionId) {
     status,
     approved,
     sessionId: data.session_id,
-    vendorData: data.vendor_data, // Our user ID
+    vendorData: data.vendor_data,
 
     idVerification: {
       status: idVerif.status,
@@ -230,7 +223,6 @@ async function getSessionResult(sessionId) {
 // ================================================================
 // 4. PASSIVE LIVENESS CHECK — Standalone selfie verification
 //    Part of the free tier (500/month)
-//    NO FALLBACKS. If Didit is down → verification fails.
 // ================================================================
 async function checkPassiveLiveness(selfieBase64) {
   requireApiKey();
@@ -267,7 +259,6 @@ async function checkPassiveLiveness(selfieBase64) {
 
 // ================================================================
 // 5. FACE MATCH — Compare two faces (1:1)
-//    Part of the free tier (500/month)
 // ================================================================
 async function matchFaces(face1Base64, face2Base64) {
   requireApiKey();
@@ -290,7 +281,6 @@ async function matchFaces(face1Base64, face2Base64) {
 
 // ================================================================
 // 6. WEBHOOK SIGNATURE VERIFICATION
-//    MUST verify X-Signature-V2 before trusting payload
 // ================================================================
 function verifyWebhookSignature(rawBody, signatureHeader, timestampHeader) {
   const secret = process.env.DIDIT_WEBHOOK_SECRET || config.didit?.webhookSecret;
@@ -299,7 +289,6 @@ function verifyWebhookSignature(rawBody, signatureHeader, timestampHeader) {
     return false;
   }
 
-  // Check timestamp freshness (within 5 minutes)
   if (timestampHeader) {
     const currentTime = Math.floor(Date.now() / 1000);
     if (Math.abs(currentTime - parseInt(timestampHeader)) > 300) {
@@ -326,7 +315,7 @@ function verifyWebhookSignature(rawBody, signatureHeader, timestampHeader) {
 
 
 // ================================================================
-// 7. HEALTH CHECK — Test Didit connectivity
+// 7. HEALTH CHECK
 // ================================================================
 async function testConnection() {
   const apiKey = config.didit?.apiKey || process.env.DIDIT_API_KEY;
