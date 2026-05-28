@@ -286,6 +286,16 @@ async function notifyUser(userId, { title, message, type = 'info', data = {}, em
     results.push = { success: true, message: 'Push queued' };
   }
 
+  // Telegram notification (FREE — unlimited)
+  // TODO: When telegramChatId is added to User model, uncomment:
+  // try {
+  //   const user = await db.user.findUnique({ where: { id: userId }, select: { telegramChatId: true } });
+  //   if (user?.telegramChatId) {
+  //     const tg = require('./telegramService');
+  //     results.telegram = await tg.sendMessage(user.telegramChatId, `${title}\n\n${message}`);
+  //   }
+  // } catch (err) { results.telegram = { ok: false, message: err.message }; }
+
   // Email notification
   if (email) {
     try {

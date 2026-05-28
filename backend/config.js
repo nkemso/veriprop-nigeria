@@ -160,6 +160,16 @@ const config = {
     freeMonthly: 500,
   },
 
+  // ============================================================
+  // TELEGRAM BOT — FREE unlimited notifications, login, OTP
+  // Setup: Message @BotFather → /newbot → get token
+  // ============================================================
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN,
+    enabled: !!(process.env.TELEGRAM_BOT_TOKEN),
+    channelId: process.env.TELEGRAM_CHANNEL_ID || '@VeriPropNigeria',
+  },
+
   maps: {
     provider: 'openstreetmap',
     tileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',

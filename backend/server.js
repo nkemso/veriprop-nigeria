@@ -89,6 +89,10 @@ app.get('/api/v1/ops/comms', async (req, res) => {
     const pushService = require('./services/pushService');
     results.push = await pushService.testConnection();
   } catch (e) { results.push = { connected: false, message: e.message }; }
+  try {
+    const telegramService = require('./services/telegramService');
+    results.telegram = await telegramService.testConnection();
+  } catch (e) { results.telegram = { connected: false, message: e.message }; }
   res.json({ status: 'ok', comms: results, timestamp: new Date().toISOString() });
 });
 
@@ -159,6 +163,98 @@ try {
   app.use('/api/portfolio', phase45.portfolioRouter);
   app.use('/api/support', phase45.supportRouter);
   app.use('/api/notifications', phase45.notificationRouter);
+
+  // ── TELEGRAM BOT WEBHOOK ──────────────────────────────────
+  app.post('/api/v1/telegram/webhook', express.json(), async (req, res) => {
+    try {
+      const tg = require('./services/telegramService');
+      await tg.handleBotUpdate(req.body);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[Telegram Webhook]', err.message);
+      res.json({ ok: true }); // Always 200 for Telegram
+    }
+  });
+
+  // ── TELEGRAM LOGIN VERIFY ──────────────────────────────────
+  app.post('/api/v1/auth/telegram', express.json(), async (req, res) => {
+    try {
+      const tg = require('./services/telegramService');
+      const result = tg.verifyTelegramLogin(req.body);
+
+      if (!result.valid) {
+        return res.status(401).json({ success: false, message: result.message });
+      }
+
+      const { telegramId, firstName, lastName, username, photoUrl } = result.user;
+      const db = require('./db');
+      const { generateTokens } = require('./roleAuth');
+
+      // Find or create user by Telegram ID
+      let user = await db.user.findFirst({
+        where: { email: `tg_${telegramId}@veriprop.telegram` },
+        select: { id: true, email: true, firstName: true, lastName: true, role: true, isVerified: true, isActive: true },
+      });
+
+      if (!user) {
+        // Create new account from Telegram login
+        const bcrypt = require('bcryptjs');
+        const tempPassword = await bcrypt.hash(require('crypto').randomBytes(32).toString('hex'), 10);
+
+        user = await db.user.create({
+          data: {
+            email: `tg_${telegramId}@veriprop.telegram`,
+            password: tempPassword,
+            firstName: firstName || 'Telegram',
+            lastName: lastName || 'User',
+            phone: '+2340000000000', // Placeholder — user updates later
+            role: 'buyer',
+            isActive: true,
+            profile: { create: { displayName: `${firstName} ${lastName}`.trim() } },
+          },
+          select: { id: true, email: true, firstName: true, lastName: true, role: true, isVerified: true, isActive: true },
+        });
+      }
+
+      if (!user.isActive) {
+        return res.status(403).json({ success: false, message: 'Account deactivated' });
+      }
+
+      const { accessToken, refreshToken } = generateTokens(user);
+
+      res.json({
+        success: true,
+        message: 'Logged in via Telegram',
+        user,
+        tokens: { accessToken, refreshToken },
+        isNewUser: !user.isVerified,
+      });
+    } catch (err) {
+      console.error('[Telegram Login]', err.message);
+      res.status(500).json({ success: false, message: 'Telegram login failed' });
+    }
+  });
+
+  // Auto-setup Telegram webhook on startup
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    const tg = require('./services/telegramService');
+    const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+      ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN
+      : 'https://veriprop-nigeria-production.up.railway.app';
+    tg.setWebhook(backendUrl + '/api/v1/telegram/webhook')
+      .then(r => console.log('[Telegram] Webhook set:', r.ok ? '✅' : '❌', r.description || ''))
+      .catch(e => console.error('[Telegram] Webhook setup failed:', e.message));
+
+    // Set bot commands menu
+    tg.tgFetch('setMyCommands', {
+      commands: [
+        { command: 'start', description: 'Welcome & get started' },
+        { command: 'link', description: 'Link your VeriProp account' },
+        { command: 'status', description: 'Check your verification status' },
+        { command: 'help', description: 'Get help & support' },
+      ],
+    }).catch(() => {});
+  }
 
   console.log('✅ All routes loaded');
 } catch (err) {
