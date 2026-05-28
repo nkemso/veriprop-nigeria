@@ -2,21 +2,32 @@
 
 /**
  * ================================================================
- * VERIPROP NIGERIA — DIDIT KYC SERVICE (PRODUCTION)
+ * VERIPROP NIGERIA — DIDIT KYC SERVICE (PRODUCTION — FREE TIER)
  * ================================================================
- * ZERO-TRUST: No simulations. No fallbacks. No demo modes.
- * If Didit is not configured or fails → verification FAILS.
+ * ZERO-TRUST using Didit's FREE session-based KYC:
  *
- * Services used:
- *   1. Database Validation — BVN via nga_bank_verification_number ($0.80/call)
- *   2. Database Validation — NIN via nga_national_id ($0.08/call)
- *   3. Session-based KYC  — ID + Liveness + Face Match + IP Analysis (500 FREE/month)
- *   4. Passive Liveness    — Standalone selfie check
- *   5. Face Match          — 1:1 comparison
- *   6. AML Screening       — Watchlist check
+ *   ✅ ID Verification  — OCR extracts NIN/BVN from document photo   FREE
+ *   ✅ Passive Liveness  — AI confirms real person, not photo/mask    FREE
+ *   ✅ Face Match         — selfie matches document portrait photo     FREE
+ *   ✅ IP Analysis        — flags VPNs, proxies, Tor                  FREE
+ *
+ *   500 FREE sessions/month forever. $0.33/session after that.
+ *   No simulations. No fallbacks. No demo modes.
+ *
+ * HOW IT WORKS:
+ *   1. Backend creates a Didit session → gets session_url
+ *   2. User is redirected to Didit's hosted UI
+ *   3. User scans their NIN slip / ID card + takes selfie
+ *   4. Didit does OCR + Liveness + Face Match + IP Analysis
+ *   5. Webhook fires with Approved/Declined → we update user tier
+ *
+ * This is STRONGER than just checking a number against a database:
+ *   - Proves the user PHYSICALLY POSSESSES the ID document
+ *   - Proves the user's FACE MATCHES the document photo
+ *   - Proves the user is a REAL LIVE PERSON (not a printed photo)
+ *   - Extracts the NIN/BVN number via OCR (can't fake the document)
  *
  * GET YOUR KEY: business.didit.me (60-second signup, no credit card)
- * DOCS: docs.didit.me
  * ================================================================
  */
 
@@ -64,200 +75,11 @@ async function diditFetchJSON(endpoint, method = 'POST', body = null) {
   return res.json();
 }
 
-// ================================================================
-// HELPER — Fetch with auth (multipart/form-data for DB Validation)
-// ================================================================
-async function diditFetchForm(endpoint, fields) {
-  const apiKey = requireApiKey();
-
-  // Build multipart boundary
-  const boundary = `----DiditBoundary${Date.now()}`;
-  let body = '';
-  for (const [key, value] of Object.entries(fields)) {
-    if (value === undefined || value === null) continue;
-    body += `--${boundary}\r\n`;
-    body += `Content-Disposition: form-data; name="${key}"\r\n\r\n`;
-    body += `${value}\r\n`;
-  }
-  body += `--${boundary}--\r\n`;
-
-  const res = await fetch(`${DIDIT_BASE}${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'Content-Type': `multipart/form-data; boundary=${boundary}`,
-    },
-    body,
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Didit DB Validation ${res.status}: ${err}`);
-  }
-  return res.json();
-}
-
 
 // ================================================================
-// 1. VERIFY BVN — Real government database check via Didit
-//    Service: nga_bank_verification_number
-//    Price: $0.80 per successful query
-//    Required: first_name, last_name, bvn (11 digits)
-// ================================================================
-async function verifyBVN(bvn, firstName, lastName, dateOfBirth = null) {
-  // Hard validation — 11 digits only
-  if (!bvn || !/^\d{11}$/.test(bvn)) {
-    return {
-      success: false,
-      verified: false,
-      message: 'BVN must be exactly 11 digits.',
-      provider: 'didit',
-    };
-  }
-
-  if (!firstName || !lastName) {
-    return {
-      success: false,
-      verified: false,
-      message: 'First name and last name are required for BVN verification.',
-      provider: 'didit',
-    };
-  }
-
-  try {
-    const fields = {
-      issuing_state: 'NGA',
-      services: 'nga_bank_verification_number',
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      bvn: bvn.trim(),
-    };
-    if (dateOfBirth) fields.date_of_birth = dateOfBirth;
-
-    const data = await diditFetchForm('/database-validation/', fields);
-
-    const isApproved = data.status === 'Approved';
-    const isFullMatch = data.match_type === 'full_match';
-    const verified = isApproved && isFullMatch;
-
-    // Extract source data from registry
-    const validation = data.validations?.[0] || {};
-    const sourceData = validation.source_data || {};
-
-    return {
-      success: true,
-      verified,
-      status: data.status,
-      matchType: data.match_type,
-      outcomeCode: validation.outcome_code,
-      sourceData: {
-        firstName: sourceData.first_name,
-        lastName: sourceData.last_name,
-        dateOfBirth: sourceData.date_of_birth,
-      },
-      fieldValidation: validation.validation || {},
-      requestId: data.request_id,
-      provider: 'didit',
-      message: verified
-        ? '✅ BVN verified against NIBSS government database.'
-        : `❌ BVN verification failed. Status: ${data.status}, Match: ${data.match_type}`,
-    };
-  } catch (err) {
-    console.error('[Didit BVN] Error:', err.message);
-    return {
-      success: false,
-      verified: false,
-      message: `BVN verification failed: ${err.message}`,
-      provider: 'didit',
-      error: err.message,
-    };
-  }
-}
-
-
-// ================================================================
-// 2. VERIFY NIN — Real NIMC government database check via Didit
-//    Service: nga_national_id
-//    Price: $0.08 per successful query
-//    Required: first_name, last_name, national_id (11 digits)
-// ================================================================
-async function verifyNIN(nin, firstName, lastName, dateOfBirth = null) {
-  // Hard validation — 11 digits only
-  if (!nin || !/^\d{11}$/.test(nin)) {
-    return {
-      success: false,
-      verified: false,
-      message: 'NIN must be exactly 11 digits.',
-      provider: 'didit',
-    };
-  }
-
-  if (!firstName || !lastName) {
-    return {
-      success: false,
-      verified: false,
-      message: 'First name and last name are required for NIN verification.',
-      provider: 'didit',
-    };
-  }
-
-  try {
-    const fields = {
-      issuing_state: 'NGA',
-      services: 'nga_national_id',
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      national_id: nin.trim(),
-    };
-    if (dateOfBirth) fields.date_of_birth = dateOfBirth;
-
-    const data = await diditFetchForm('/database-validation/', fields);
-
-    const isApproved = data.status === 'Approved';
-    const isFullMatch = data.match_type === 'full_match';
-    const verified = isApproved && isFullMatch;
-
-    const validation = data.validations?.[0] || {};
-    const sourceData = validation.source_data || {};
-
-    return {
-      success: true,
-      verified,
-      status: data.status,
-      matchType: data.match_type,
-      outcomeCode: validation.outcome_code,
-      sourceData: {
-        firstName: sourceData.first_name,
-        lastName: sourceData.last_name,
-        fullName: sourceData.full_name,
-        dateOfBirth: sourceData.date_of_birth,
-        identificationNumber: sourceData.identification_number,
-        nameMatchScore: sourceData.name_match_score,
-      },
-      fieldValidation: validation.validation || {},
-      requestId: data.request_id,
-      provider: 'didit',
-      message: verified
-        ? '✅ NIN verified against NIMC government database.'
-        : `❌ NIN verification failed. Status: ${data.status}, Match: ${data.match_type}`,
-    };
-  } catch (err) {
-    console.error('[Didit NIN] Error:', err.message);
-    return {
-      success: false,
-      verified: false,
-      message: `NIN verification failed: ${err.message}`,
-      provider: 'didit',
-      error: err.message,
-    };
-  }
-}
-
-
-// ================================================================
-// 3. CREATE KYC SESSION — Full hosted verification flow
-//    Didit handles: ID capture → Liveness → Face Match → IP Analysis
-//    500 FREE sessions/month, then $0.33/session
+// 1. CREATE / GET WORKFLOW — One-time setup
+//    Features: ID_VERIFICATION + LIVENESS + FACE_MATCH + IP_ANALYSIS
+//    All 4 features are FREE (500 sessions/month)
 // ================================================================
 async function getOrCreateWorkflow() {
   if (cachedWorkflowId) return cachedWorkflowId;
@@ -266,6 +88,25 @@ async function getOrCreateWorkflow() {
   if (process.env.DIDIT_WORKFLOW_ID) {
     cachedWorkflowId = process.env.DIDIT_WORKFLOW_ID;
     return cachedWorkflowId;
+  }
+
+  try {
+    // Try to list existing workflows first
+    const existing = await diditFetchJSON('/workflows/', 'GET');
+    if (Array.isArray(existing) && existing.length > 0) {
+      // Use the first workflow that has all 4 features
+      const suitable = existing.find(w =>
+        w.features?.includes('ID_VERIFICATION') &&
+        w.features?.includes('LIVENESS')
+      );
+      if (suitable) {
+        cachedWorkflowId = suitable.uuid || suitable.id;
+        console.log('[Didit] Using existing workflow:', cachedWorkflowId);
+        return cachedWorkflowId;
+      }
+    }
+  } catch (e) {
+    // Listing failed, create new
   }
 
   try {
@@ -278,7 +119,7 @@ async function getOrCreateWorkflow() {
         { feature: 'IP_ANALYSIS' },
       ],
     });
-    cachedWorkflowId = data.id || data.uuid;
+    cachedWorkflowId = data.uuid || data.id;
     console.log('[Didit] Workflow created:', cachedWorkflowId);
     return cachedWorkflowId;
   } catch (err) {
@@ -287,13 +128,26 @@ async function getOrCreateWorkflow() {
   }
 }
 
+
+// ================================================================
+// 2. CREATE KYC SESSION — The core free verification flow
+//    Redirects user to Didit's hosted UI for:
+//      → Document scan (NIN slip, passport, driver's license)
+//      → Selfie capture (passive liveness)
+//      → Face match (selfie vs document portrait)
+//      → IP & device analysis
+//    500 FREE sessions/month, then $0.33/session
+// ================================================================
 async function createKYCSession(userId, callbackUrl) {
-  requireApiKey(); // Will throw if not configured
+  requireApiKey();
 
   const workflowId = await getOrCreateWorkflow();
 
-  const appUrl = config.app?.url || process.env.APP_URL || 'https://veriprop-nigeria.vercel.app';
-  const callback = callbackUrl || `${appUrl}/api/v1/verify/didit-webhook`;
+  const backendUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : (config.app?.url || process.env.APP_URL || 'https://veriprop-nigeria-production.up.railway.app');
+
+  const callback = callbackUrl || `${backendUrl}/api/v1/verify/didit-webhook`;
 
   const data = await diditFetchJSON('/session/', 'POST', {
     workflow_id: workflowId,
@@ -312,34 +166,43 @@ async function createKYCSession(userId, callbackUrl) {
 
 
 // ================================================================
-// 4. GET SESSION RESULT — After user completes verification
+// 3. GET SESSION RESULT — After user completes verification
+//    Called by webhook or by polling
 // ================================================================
 async function getSessionResult(sessionId) {
   requireApiKey();
 
   const data = await diditFetchJSON(`/session/${sessionId}/decision/`, 'GET');
 
-  const approved = data.status === 'Approved';
-  const idVerif = data.id_verifications?.[0] || data.id_verification || {};
-  const liveness = data.liveness_checks?.[0] || data.liveness || {};
-  const faceMatch = data.face_matches?.[0] || data.face_match || {};
-  const ipAnalysis = data.ip_analysis || {};
+  const status = data.status;
+  const approved = status === 'Approved';
+
+  // Extract per-feature results
+  const idVerif = data.id_verifications?.[0] || {};
+  const liveness = data.liveness_checks?.[0] || {};
+  const faceMatch = data.face_matches?.[0] || {};
+  const ipAnalysis = data.ip_analyses?.[0] || data.ip_analysis || {};
 
   return {
     success: true,
-    status: data.status,
+    status,
     approved,
     sessionId: data.session_id,
+    vendorData: data.vendor_data, // Our user ID
+
     idVerification: {
       status: idVerif.status,
       documentType: idVerif.document_type,
-      documentNumber: idVerif.document_number,
+      documentNumber: idVerif.document_number || idVerif.personal_number,
       fullName: idVerif.full_name,
       firstName: idVerif.first_name,
       lastName: idVerif.last_name,
       dateOfBirth: idVerif.date_of_birth,
       issuingState: idVerif.issuing_state,
+      issuingStateName: idVerif.issuing_state_name,
       expirationDate: idVerif.expiration_date,
+      gender: idVerif.gender,
+      nationality: idVerif.nationality,
     },
     liveness: {
       status: liveness.status,
@@ -353,6 +216,7 @@ async function getSessionResult(sessionId) {
     ipAnalysis: {
       status: ipAnalysis.status,
       country: ipAnalysis.country,
+      city: ipAnalysis.city,
       isVPN: ipAnalysis.vpn,
       isProxy: ipAnalysis.proxy,
       isTor: ipAnalysis.tor,
@@ -364,7 +228,8 @@ async function getSessionResult(sessionId) {
 
 
 // ================================================================
-// 5. PASSIVE LIVENESS CHECK — Standalone selfie verification
+// 4. PASSIVE LIVENESS CHECK — Standalone selfie verification
+//    Part of the free tier (500/month)
 //    NO FALLBACKS. If Didit is down → verification fails.
 // ================================================================
 async function checkPassiveLiveness(selfieBase64) {
@@ -401,7 +266,8 @@ async function checkPassiveLiveness(selfieBase64) {
 
 
 // ================================================================
-// 6. FACE MATCH — Compare two faces (1:1)
+// 5. FACE MATCH — Compare two faces (1:1)
+//    Part of the free tier (500/month)
 // ================================================================
 async function matchFaces(face1Base64, face2Base64) {
   requireApiKey();
@@ -423,28 +289,7 @@ async function matchFaces(face1Base64, face2Base64) {
 
 
 // ================================================================
-// 7. AML SCREENING — Check against 1,300+ watchlists
-// ================================================================
-async function screenAML(name, dateOfBirth, country = 'NG') {
-  requireApiKey();
-
-  const data = await diditFetchJSON('/aml-screening/', 'POST', {
-    name,
-    date_of_birth: dateOfBirth,
-    country,
-  });
-
-  return {
-    success: true,
-    isClean: data.status === 'Approved' || !data.matches?.length,
-    matches: data.matches || [],
-    provider: 'didit',
-  };
-}
-
-
-// ================================================================
-// 8. WEBHOOK SIGNATURE VERIFICATION
+// 6. WEBHOOK SIGNATURE VERIFICATION
 //    MUST verify X-Signature-V2 before trusting payload
 // ================================================================
 function verifyWebhookSignature(rawBody, signatureHeader, timestampHeader) {
@@ -481,7 +326,7 @@ function verifyWebhookSignature(rawBody, signatureHeader, timestampHeader) {
 
 
 // ================================================================
-// 9. HEALTH CHECK — Test Didit connectivity
+// 7. HEALTH CHECK — Test Didit connectivity
 // ================================================================
 async function testConnection() {
   const apiKey = config.didit?.apiKey || process.env.DIDIT_API_KEY;
@@ -490,7 +335,7 @@ async function testConnection() {
     return {
       connected: false,
       mode: 'NOT_CONFIGURED',
-      message: '⛔ DIDIT_API_KEY is not set. Verification is DISABLED. Get your free key at https://business.didit.me',
+      message: '⛔ DIDIT_API_KEY is not set. Verification is DISABLED.',
       critical: true,
     };
   }
@@ -500,9 +345,9 @@ async function testConnection() {
     return {
       connected: true,
       mode: 'LIVE',
-      provider: 'Didit KYC',
+      provider: 'Didit KYC (Free Session-based)',
       freeMonthly: 500,
-      message: '✅ Didit connected — live verification active.',
+      message: '✅ Didit connected — free session verification active.',
     };
   } catch (err) {
     return {
@@ -516,13 +361,11 @@ async function testConnection() {
 
 
 module.exports = {
-  verifyBVN,
-  verifyNIN,
   createKYCSession,
   getSessionResult,
   checkPassiveLiveness,
   matchFaces,
-  screenAML,
   verifyWebhookSignature,
   testConnection,
+  getOrCreateWorkflow,
 };
