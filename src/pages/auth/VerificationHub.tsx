@@ -61,7 +61,9 @@ export default function VerificationHub() {
       const data = await res.json()
       setBvnMsg({ ok: data.success, text: data.message || (data.success ? 'BVN verified!' : 'Verification failed') })
       if (data.success) {
-        localStorage.setItem('user', JSON.stringify({ ...JSON.parse(localStorage.getItem('user') || '{}'), bvnVerified: true, verificationTier: 'TIER1_BVN' }))
+        const u1 = JSON.parse(localStorage.getItem('user') || '{}')
+        localStorage.setItem('user', JSON.stringify({ ...u1, bvnVerified: true, verificationTier: data.verificationTier || 'TIER1_BVN', ...(data.user || {}) }))
+        window.dispatchEvent(new Event('userUpdated'))
       }
     } catch (err) {
       setBvnMsg({ ok: false, text: 'Network error. Check your connection and try again.' })
@@ -91,7 +93,9 @@ export default function VerificationHub() {
       const data = await res.json()
       setNinMsg({ ok: data.success, text: data.message || (data.success ? 'ID verified!' : 'Verification failed') })
       if (data.success) {
-        localStorage.setItem('user', JSON.stringify({ ...JSON.parse(localStorage.getItem('user') || '{}'), ninVerified: true, verificationTier: 'TIER2_GOVT_ID' }))
+        const u2 = JSON.parse(localStorage.getItem('user') || '{}')
+        localStorage.setItem('user', JSON.stringify({ ...u2, ninVerified: true, verificationTier: data.verificationTier || 'TIER2_GOVT_ID', ...(data.user || {}) }))
+        window.dispatchEvent(new Event('userUpdated'))
       }
     } catch (err) {
       setNinMsg({ ok: false, text: 'Network error. Check your connection and try again.' })
