@@ -101,6 +101,10 @@ app.get('/api/v1/ops/comms', async (req, res) => {
     const storageService = require('./services/storageService');
     results.storage = await storageService.testConnection();
   } catch (e) { results.storage = { connected: false, message: e.message }; }
+  try {
+    const paymentService = require('./services/paymentService');
+    results.payments = await paymentService.testConnection();
+  } catch (e) { results.payments = { connected: false, message: e.message }; }
   res.json({ status: 'ok', comms: results, timestamp: new Date().toISOString() });
 });
 

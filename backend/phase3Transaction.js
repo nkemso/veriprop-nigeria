@@ -382,125 +382,220 @@ escrowRouter.post('/:id/dispute', authenticateToken, async (req, res) => {
 // PAYMENT ROUTES
 // ============================================================
 
-paymentRouter.post('/initialize', authenticateToken, requireTier('TIER1_BVN'), async (req, res) => {
+// ════════════════════════════════════════════════════════════
+// PAYMENT ROUTES — VeriProp Fee Engine
+// ════════════════════════════════════════════════════════════
+// Fee Structure:
+//   WITH AGENT:    Buyer pays property + agent(5-10%) + platform(2.5%)
+//   DIRECT LISTING: Buyer pays property + VeriProp(5%, acting as agent)
+//   Landlord ALWAYS gets 100% of property price
+// ════════════════════════════════════════════════════════════
+
+const paymentService = require('./services/paymentService');
+
+// ─── FEE CALCULATOR — Preview fees before payment ────────────
+paymentRouter.post('/calculate-fees', authenticateToken, async (req, res) => {
   try {
-    const { amount, email, transactionId, metadata } = req.body;
-    if (!amount || !transactionId) {
-      return res.status(400).json({ success: false, message: 'amount and transactionId required' });
+    const { propertyPrice, agentRate, hasAgent } = req.body;
+    if (!propertyPrice) {
+      return res.status(400).json({ success: false, message: 'propertyPrice required' });
     }
 
-    const response = await axios.post(
-      'https://api.paystack.co/transaction/initialize',
-      {
-        email: email || req.user.email,
-        amount: Math.round(parseFloat(amount) * 100),
-        reference: `VP-${transactionId}-${Date.now()}`,
-        callback_url: `${config.app.frontendUrl}/payment/callback`,
-        metadata: { transactionId, userId: req.user.id, ...metadata },
-      },
-      { headers: { Authorization: `Bearer ${config.payments.paystack.secretKey}` } }
-    );
+    const fees = paymentService.calculateFees(propertyPrice, agentRate, hasAgent !== false);
+    res.json({ success: true, fees });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── LIST BANKS — For bank account setup ─────────────────────
+paymentRouter.get('/banks', authenticateToken, async (req, res) => {
+  try {
+    const banks = await paymentService.listBanks();
+    res.json({ success: true, banks });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── VERIFY BANK ACCOUNT — Resolve account name ──────────────
+paymentRouter.post('/verify-bank', authenticateToken, async (req, res) => {
+  try {
+    const { accountNumber, bankCode } = req.body;
+    if (!accountNumber || !bankCode) {
+      return res.status(400).json({ success: false, message: 'accountNumber and bankCode required' });
+    }
+    const result = await paymentService.verifyBankAccount(accountNumber, bankCode);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── INITIALIZE PAYMENT — Buyer starts payment ──────────────
+paymentRouter.post('/initialize', authenticateToken, requireTier('TIER3_NOTARY'), async (req, res) => {
+  try {
+    const { transactionId, propertyPrice, agentRate, hasAgent } = req.body;
+    if (!transactionId || !propertyPrice) {
+      return res.status(400).json({ success: false, message: 'transactionId and propertyPrice required' });
+    }
+
+    // Get buyer's email
+    const user = await db.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true },
+    });
+
+    // Get transaction details
+    const transaction = await db.transaction.findUnique({
+      where: { id: transactionId },
+      include: { property: { select: { title: true } } },
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    if (transaction.buyerId !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the buyer can initiate payment' });
+    }
+
+    const result = await paymentService.initializeTransaction({
+      email: user.email,
+      propertyPrice,
+      agentRate: agentRate || 0.05,
+      hasAgent: hasAgent !== false && !!transaction.agentId,
+      transactionId,
+      propertyTitle: transaction.property?.title || 'Property',
+    });
 
     await auditLog({
-      action: 'escrow_funded',
+      action: 'payment_initialized',
       userId: req.user.id,
       transactionId,
       resourceType: 'payment',
-      description: `Payment initialized: ₦${amount.toLocaleString()} for transaction ${transactionId}`,
-      metadata: { amount, reference: response.data.data.reference },
+      description: `Payment initialized: ₦${result.fees.totalBuyerPays.toLocaleString()} (Property: ₦${propertyPrice.toLocaleString()} + Fees)`,
+      metadata: { reference: result.reference, fees: result.fees },
       ipAddress: req.ip,
     });
 
-    res.json({ success: true, data: response.data.data });
+    res.json({ success: true, ...result });
   } catch (error) {
-    console.error('[PAY] Init error:', error.response?.data || error.message);
-    res.status(500).json({ success: false, message: 'Failed to initialize payment' });
+    console.error('[PAY] Init error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to initialize payment: ' + error.message });
   }
 });
 
+// ─── VERIFY PAYMENT — Confirm payment was successful ─────────
 paymentRouter.get('/verify/:reference', authenticateToken, async (req, res) => {
   try {
-    const response = await axios.get(
-      `https://api.paystack.co/transaction/verify/${req.params.reference}`,
-      { headers: { Authorization: `Bearer ${config.payments.paystack.secretKey}` } }
-    );
+    const result = await paymentService.verifyTransaction(req.params.reference);
 
-    const data = response.data.data;
-    if (data.status === 'success') {
-      const transactionId = data.metadata?.transactionId;
-      if (transactionId) {
-        await db.transaction.update({
-          where: { id: transactionId },
-          data: { status: 'escrow_funded', paymentReference: data.reference, paidAt: new Date() },
-        });
+    if (result.success && result.metadata?.transaction_id) {
+      const transactionId = result.metadata.transaction_id;
 
-        const escrow = await db.escrow.findFirst({ where: { transactionId } });
-        if (escrow) {
-          await fundEscrow(escrow.id, data.reference);
-          await auditLog({
-            action: 'escrow_funded',
-            userId: req.user.id,
-            transactionId,
-            resourceType: 'escrow',
-            resourceId: escrow.id,
-            description: `Escrow funded via Paystack. Ref: ${data.reference}. Amount: ₦${(data.amount / 100).toLocaleString()}`,
-            metadata: { reference: data.reference, amount: data.amount / 100 },
-            ipAddress: req.ip,
-          });
-        }
-      }
-    }
+      await db.transaction.update({
+        where: { id: transactionId },
+        data: { status: 'escrow_funded', paymentReference: result.reference, paidAt: new Date(result.paidAt) },
+      }).catch(err => console.error('[PAY] Transaction update:', err.message));
 
-    res.json({ success: true, status: data.status, data });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Payment verification failed' });
-  }
-});
+      // Update escrow
+      await db.escrow.updateMany({
+        where: { transactionId },
+        data: {
+          status: 'funded',
+          paymentReference: result.reference,
+          fundedAt: new Date(),
+          totalDeposited: result.amount,
+          platformFee: result.metadata.platform_fee || 0,
+          agentCommission: result.metadata.agent_commission || 0,
+          vatAmount: result.metadata.vat_amount || 0,
+          netSellerAmount: result.metadata.property_price || 0,
+        },
+      }).catch(err => console.error('[PAY] Escrow update:', err.message));
 
-// Paystack Webhook (no auth — verified via signature)
-paymentRouter.post('/webhook/paystack', async (req, res) => {
-  try {
-    const crypto = require('crypto');
-    const hash = crypto
-      .createHmac('sha512', config.payments.paystack.webhookSecret)
-      .update(JSON.stringify(req.body))
-      .digest('hex');
-
-    if (hash !== req.headers['x-paystack-signature']) {
-      return res.status(401).json({ message: 'Invalid webhook signature' });
-    }
-
-    const { event, data } = req.body;
-    console.log(`[WEBHOOK] Paystack: ${event}`);
-
-    if (event === 'charge.success') {
-      const transactionId = data.metadata?.transactionId;
-      if (transactionId) {
-        await db.transaction.update({
-          where: { id: transactionId },
-          data: { status: 'escrow_funded', paymentReference: data.reference, paidAt: new Date() },
-        });
-        await auditLog({
-          action: 'escrow_funded',
-          transactionId,
-          description: `Webhook: charge.success for ${data.reference}`,
-          metadata: { event, reference: data.reference },
-        });
-      }
-    }
-
-    if (event === 'transfer.success') {
       await auditLog({
-        action: 'funds_released',
-        description: `Webhook: transfer.success — ${data.reference}`,
-        metadata: { event, reference: data.reference },
+        action: 'escrow_funded',
+        userId: req.user.id,
+        transactionId,
+        resourceType: 'escrow',
+        description: `Payment verified: ₦${result.amount.toLocaleString()}. Ref: ${result.reference}`,
+        metadata: { reference: result.reference, amount: result.amount },
+        ipAddress: req.ip,
       });
     }
 
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Payment verification failed: ' + error.message });
+  }
+});
+
+// ─── PAYSTACK WEBHOOK — Receives payment events ─────────────
+paymentRouter.post('/webhook', async (req, res) => {
+  try {
+    const rawBody = JSON.stringify(req.body);
+    const signature = req.headers['x-paystack-signature'];
+
+    if (!paymentService.verifyWebhookSignature(rawBody, signature)) {
+      console.error('[PAY] ⛔ Invalid Paystack webhook signature');
+      return res.sendStatus(401);
+    }
+
+    const { event, data } = req.body;
+    console.log(`[PAY] Webhook: ${event}`);
+
+    await paymentService.handlePaymentWebhook(event, data);
+
     res.sendStatus(200);
   } catch (error) {
-    console.error('[WEBHOOK] Error:', error);
-    res.sendStatus(500);
+    console.error('[PAY] Webhook error:', error.message);
+    res.sendStatus(200); // Always 200 to prevent retries
+  }
+});
+
+// ─── RELEASE ESCROW — Admin releases funds to landlord ───────
+paymentRouter.post('/escrow/:id/release', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const result = await paymentService.releaseEscrow(req.params.id, req.user.id);
+
+    await auditLog({
+      action: 'escrow_released',
+      userId: req.user.id,
+      resourceType: 'escrow',
+      resourceId: req.params.id,
+      description: `Escrow released by admin ${req.user.id}`,
+      ipAddress: req.ip,
+    });
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── REFUND — Return funds to buyer ──────────────────────────
+paymentRouter.post('/refund', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { reference, amount } = req.body;
+    if (!reference) {
+      return res.status(400).json({ success: false, message: 'Payment reference required' });
+    }
+
+    const result = await paymentService.refundTransaction(reference, amount);
+
+    await auditLog({
+      action: 'payment_refunded',
+      userId: req.user.id,
+      resourceType: 'payment',
+      description: `Refund processed: ${reference}`,
+      metadata: { reference, amount },
+      ipAddress: req.ip,
+    });
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
