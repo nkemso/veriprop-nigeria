@@ -82,6 +82,16 @@ export default function AdminDashboard() {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, isBanned: ban } : u))
   }
 
+  const changeRole = async (id: string, role: string) => {
+    const data = await action(`/api/v1/admin/users/${id}/role`, 'PATCH', { role })
+    if (data.success) setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
+  }
+
+  const verifyUser = async (id: string, tier: string) => {
+    const data = await action(`/api/v1/admin/users/${id}/verify`, 'PATCH', { tier })
+    if (data.success) setUsers(prev => prev.map(u => u.id === id ? { ...u, isVerified: true } : u))
+  }
+
   const moderateProperty = async (id: string, act: string) => {
     await action(`/api/v1/admin/properties/${id}/moderate`, 'PATCH', { action: act })
     setProperties(prev => prev.filter(p => p.id !== id))
@@ -264,10 +274,32 @@ export default function AdminDashboard() {
                               </td>
                               <td style={{ padding: '0.75rem 1rem', color: '#6e7681' }}>{new Date(u.createdAt).toLocaleDateString('en-NG')}</td>
                               <td style={{ padding: '0.75rem 1rem' }}>
-                                <button onClick={() => banUser(u.id, !u.isBanned)}
-                                  style={{ background: u.isBanned ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: u.isBanned ? '#10b981' : '#ef4444', border: 'none', padding: '0.3rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
-                                  {u.isBanned ? 'Unban' : 'Ban'}
-                                </button>
+                                <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+                                  {/* Role dropdown — only for super_admin */}
+                                  {user?.role === 'super_admin' && u.role !== 'super_admin' && (
+                                    <select
+                                      value={u.role}
+                                      onChange={e => changeRole(u.id, e.target.value)}
+                                      style={{ background: '#0d1117', color: '#60a5fa', border: '1px solid #30363d', padding: '0.25rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.7rem', cursor: 'pointer' }}
+                                    >
+                                      {['buyer','seller','agent','landlord','developer','admin','compliance_officer'].map(r => (
+                                        <option key={r} value={r}>{r.replace('_',' ')}</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                  {/* Verify button */}
+                                  {!u.isVerified && (
+                                    <button onClick={() => verifyUser(u.id, 'TIER3_NOTARY')}
+                                      style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', border: 'none', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600 }}>
+                                      ✅ Verify
+                                    </button>
+                                  )}
+                                  {/* Ban/Unban */}
+                                  <button onClick={() => banUser(u.id, !u.isBanned)}
+                                    style={{ background: u.isBanned ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: u.isBanned ? '#10b981' : '#ef4444', border: 'none', padding: '0.25rem 0.5rem', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600 }}>
+                                    {u.isBanned ? 'Unban' : 'Ban'}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}

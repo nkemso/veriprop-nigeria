@@ -22,8 +22,26 @@ export default function Login() {
       if (data.success) {
         localStorage.setItem('accessToken', data.tokens.accessToken)
         localStorage.setItem('refreshToken', data.tokens.refreshToken)
-        localStorage.setItem('user', JSON.stringify(data.user))
-        window.location.href = '/dashboard'
+
+        // Fetch fresh user profile to get latest role
+        let freshUser = data.user
+        try {
+          const meRes = await fetch(API + '/api/v1/users/me', {
+            headers: { Authorization: 'Bearer ' + data.tokens.accessToken }
+          })
+          const meData = await meRes.json()
+          if (meData.success && meData.user) freshUser = meData.user
+        } catch {}
+
+        localStorage.setItem('user', JSON.stringify(freshUser))
+
+        // Auto-redirect based on role
+        const adminRoles = ['super_admin', 'admin', 'compliance_officer']
+        if (adminRoles.includes(freshUser.role)) {
+          window.location.href = '/admin/dashboard'
+        } else {
+          window.location.href = '/dashboard'
+        }
       } else {
         setError(data.message || 'Login failed')
       }
