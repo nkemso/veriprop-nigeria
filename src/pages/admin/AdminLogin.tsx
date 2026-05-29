@@ -27,8 +27,8 @@ export default function AdminLogin() {
 
         // Fetch fresh user profile from /me to get latest role
         try {
-          const meRes = await fetch(\`\${API}/api/v1/users/me\`, {
-            headers: { Authorization: \`Bearer \${data.tokens.accessToken}\` }
+          const meRes = await fetch(`${API}/api/v1/users/me`, {
+            headers: { Authorization: `Bearer ${data.tokens.accessToken}` }
           })
           const meData = await meRes.json()
           if (meData.success && meData.user) {
@@ -36,7 +36,7 @@ export default function AdminLogin() {
             localStorage.setItem('user', JSON.stringify(freshUser))
 
             if (!ADMIN_ROLES.includes(freshUser.role)) {
-              setError(\`Access denied. Your role is "\${freshUser.role}". Admin credentials required.\`)
+              setError(`Access denied. Your role is "${freshUser.role}". Admin credentials required.`)
               localStorage.clear()
               setLoading(false)
               return
