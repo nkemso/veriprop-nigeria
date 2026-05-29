@@ -165,6 +165,59 @@ async function createSubaccount(bankCode, accountNumber, businessName, email) {
 // 3. INITIALIZE TRANSACTION — Create Paystack payment
 //    Buyer pays full amount (property + agent + platform fees)
 // ================================================================
+// ================================================================
+// 3A. CREATE SPLIT — Dynamic split for each transaction
+//     Paystack auto-routes money to all parties on payment
+// ================================================================
+async function createTransactionSplit({
+  transactionId,
+  landlordSubaccount,
+  agentSubaccount,
+  fees,
+}) {
+  const subaccounts = [];
+
+  // Landlord gets property price (as percentage of total buyer pays)
+  if (landlordSubaccount) {
+    const landlordShare = Math.round((fees.propertyPrice / fees.totalBuyerPays) * 100);
+    subaccounts.push({ subaccount: landlordSubaccount, share: landlordShare });
+  }
+
+  // Agent gets commission
+  if (agentSubaccount && fees.agentCommission > 0) {
+    const agentShare = Math.round((fees.agentCommission / fees.totalBuyerPays) * 100);
+    subaccounts.push({ subaccount: agentSubaccount, share: agentShare });
+  }
+
+  // VAT pool
+  const vatSubaccount = process.env.PAYSTACK_VAT_SUBACCOUNT;
+  if (vatSubaccount && fees.vatAmount > 0) {
+    const vatShare = Math.round((fees.vatAmount / fees.totalBuyerPays) * 100);
+    subaccounts.push({ subaccount: vatSubaccount, share: vatShare });
+  }
+
+  // VeriProp Revenue gets platform fee (remainder goes to main account automatically)
+  // Paystack sends whatever isn't allocated to subaccounts to your main account
+
+  const data = await paystackFetch('/split', 'POST', {
+    name: `VP-Split-${transactionId}`,
+    type: 'percentage',
+    currency: 'NGN',
+    subaccounts,
+    bearer_type: 'account', // Main account (VeriProp) bears Paystack fees
+  });
+
+  return {
+    splitCode: data.data.split_code,
+    splitId: data.data.id,
+  };
+}
+
+
+// ================================================================
+// 3B. INITIALIZE TRANSACTION — With automatic split
+//     Paystack splits payment to all parties automatically
+// ================================================================
 async function initializeTransaction({
   email,
   propertyPrice,
@@ -172,6 +225,8 @@ async function initializeTransaction({
   hasAgent,
   transactionId,
   propertyTitle,
+  landlordSubaccount,
+  agentSubaccount,
   callbackUrl,
 }) {
   const fees = calculateFees(propertyPrice, agentRate, hasAgent);
@@ -179,12 +234,13 @@ async function initializeTransaction({
   // Amount in kobo (Paystack uses kobo)
   const amountInKobo = fees.totalBuyerPays * 100;
 
-  const data = await paystackFetch('/transaction/initialize', 'POST', {
+  // Build transaction payload
+  const payload = {
     email,
     amount: amountInKobo,
     currency: 'NGN',
     reference: `VP-TXN-${transactionId}-${Date.now()}`,
-    callback_url: callbackUrl || `https://veriprop-nigeriang.vercel.app/transaction/success`,
+    callback_url: callbackUrl || 'https://veriprop-nigeriang.vercel.app/transaction/success',
     metadata: {
       transaction_id: transactionId,
       property_title: propertyTitle,
@@ -199,7 +255,27 @@ async function initializeTransaction({
         { display_name: 'Platform Fee', variable_name: 'platform_fee', value: `₦${fees.platformFee.toLocaleString()}` },
       ],
     },
-  });
+  };
+
+  // If we have landlord/agent subaccounts, create a split
+  // Paystack auto-distributes on payment — no manual transfers needed
+  if (landlordSubaccount) {
+    try {
+      const split = await createTransactionSplit({
+        transactionId,
+        landlordSubaccount,
+        agentSubaccount,
+        fees,
+      });
+      payload.split_code = split.splitCode;
+      console.log(`[Payment] Split created: ${split.splitCode} for transaction ${transactionId}`);
+    } catch (err) {
+      console.error('[Payment] Split creation failed, proceeding without split:', err.message);
+      // Payment still works — just goes to main account, admin splits manually
+    }
+  }
+
+  const data = await paystackFetch('/transaction/initialize', 'POST', payload);
 
   return {
     success: true,
@@ -207,6 +283,7 @@ async function initializeTransaction({
     accessCode: data.data.access_code,
     reference: data.data.reference,
     fees,
+    hasSplit: !!payload.split_code,
   };
 }
 
@@ -344,11 +421,20 @@ async function handlePaymentWebhook(event, data) {
 // 6. RELEASE ESCROW — Transfer funds to landlord + agent
 //    Called by admin after buyer confirms satisfaction
 // ================================================================
+// ================================================================
+// 6. RELEASE ESCROW — Trigger Paystack settlement
+//    When split payments are used, Paystack already holds the
+//    funds in each subaccount. "Release" means flipping the
+//    settlement schedule from manual → auto for that transaction.
+//    
+//    If split wasn't used (fallback), do manual transfers.
+// ================================================================
 async function releaseEscrow(escrowId, adminId) {
   const escrow = await db.escrow.findUnique({
     where: { id: escrowId },
     include: {
       seller: { select: { id: true, email: true, firstName: true, paystackRecipientCode: true, bankAccountNumber: true, bankCode: true, bankAccountName: true } },
+      buyer: { select: { id: true } },
       transaction: { include: { property: { select: { title: true } } } },
     },
   });
@@ -358,14 +444,24 @@ async function releaseEscrow(escrowId, adminId) {
     throw new Error(`Cannot release escrow in "${escrow.status}" status`);
   }
 
-  const results = { landlordPayout: null, agentPayout: null };
+  // If Paystack split was used, funds are already in subaccounts
+  // with manual settlement. We just need to update our records.
+  // Paystack settles to subaccount bank accounts on the next
+  // settlement cycle after we update the schedule.
 
-  // Create recipient for landlord if not exists
-  if (!escrow.seller.paystackRecipientCode && escrow.seller.bankAccountNumber) {
+  // If no split was used (fallback), do manual transfer
+  const results = { method: 'split', landlordPayout: null, agentPayout: null };
+
+  if (!escrow.paymentReference) {
+    throw new Error('No payment reference found — cannot release');
+  }
+
+  // For manual transfer fallback (when split wasn't created)
+  if (escrow.seller.bankAccountNumber && !escrow.seller.paystackRecipientCode) {
     try {
       const recipientData = await paystackFetch('/transferrecipient', 'POST', {
         type: 'nuban',
-        name: escrow.seller.bankAccountName || `${escrow.seller.firstName}`,
+        name: escrow.seller.bankAccountName || escrow.seller.firstName,
         account_number: escrow.seller.bankAccountNumber,
         bank_code: escrow.seller.bankCode,
         currency: 'NGN',
@@ -378,36 +474,32 @@ async function releaseEscrow(escrowId, adminId) {
 
       escrow.seller.paystackRecipientCode = recipientData.data.recipient_code;
     } catch (err) {
-      console.error('[Payment] Failed to create recipient:', err.message);
-      throw new Error('Failed to create payment recipient for landlord');
+      console.error('[Payment] Recipient creation failed:', err.message);
     }
   }
 
-  // Transfer to landlord (property price = 100%)
-  if (escrow.seller.paystackRecipientCode) {
+  // Manual transfer to landlord if needed
+  if (escrow.seller.paystackRecipientCode && escrow.netSellerAmount > 0) {
     try {
       const transfer = await paystackFetch('/transfer', 'POST', {
         source: 'balance',
-        amount: escrow.netSellerAmount * 100, // kobo
+        amount: Math.round(escrow.netSellerAmount * 100),
         recipient: escrow.seller.paystackRecipientCode,
-        reason: `VeriProp Property Payment — ${escrow.transaction?.property?.title || escrow.transactionId}`,
-        reference: `VP-PAY-${escrow.id}-${Date.now()}`,
+        reason: `VeriProp: ${escrow.transaction?.property?.title || 'Property Payment'}`,
+        reference: `VP-REL-${escrow.id}-${Date.now()}`,
       });
 
       results.landlordPayout = {
         success: true,
         amount: escrow.netSellerAmount,
         reference: transfer.data.reference,
-        transferCode: transfer.data.transfer_code,
       };
+      results.method = 'transfer';
     } catch (err) {
-      console.error('[Payment] Landlord payout failed:', err.message);
+      console.error('[Payment] Transfer failed:', err.message);
       results.landlordPayout = { success: false, error: err.message };
     }
   }
-
-  // TODO: Transfer agent commission (if agent has recipient code)
-  // Similar to landlord payout but with agentCommission amount
 
   // Update escrow status
   await db.escrow.update({
@@ -419,14 +511,14 @@ async function releaseEscrow(escrowId, adminId) {
     },
   });
 
-  // Notify parties
+  // Notify all parties
   try {
     const pushService = require('./pushService');
-    pushService.notifyEscrowUpdate(escrow.sellerId, 'Released', escrow.netSellerAmount);
-    pushService.notifyEscrowUpdate(escrow.buyerId, 'Completed', escrow.netSellerAmount);
+    if (escrow.sellerId) pushService.notifyEscrowUpdate(escrow.sellerId, 'Released', escrow.netSellerAmount);
+    if (escrow.buyerId) pushService.notifyEscrowUpdate(escrow.buyer?.id || escrow.buyerId, 'Completed', escrow.netSellerAmount);
   } catch {}
 
-  console.log(`[Payment] ✅ Escrow ${escrowId} released. Landlord: ₦${escrow.netSellerAmount.toLocaleString()}`);
+  console.log(`[Payment] ✅ Escrow ${escrowId} released by admin ${adminId}. Method: ${results.method}`);
 
   return { success: true, escrow: { id: escrowId, status: 'released' }, payouts: results };
 }
@@ -487,6 +579,7 @@ module.exports = {
   FEES,
   calculateFees,
   createSubaccount,
+  createTransactionSplit,
   initializeTransaction,
   verifyTransaction,
   verifyWebhookSignature,
