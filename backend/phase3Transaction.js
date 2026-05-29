@@ -8,6 +8,7 @@ const { requireAuth: authenticateToken, requireRole, requireTier, requireAdmin }
 const { initiateEscrow, fundEscrow, requestRelease, releaseEscrow, initiateDispute } = require('./escrowEngine');
 const { createSplitPlan, recordInstallment } = require('./splitEscrowEngine');
 const { auditLog } = require('./audit/auditLogger');
+const paymentService = require('./services/paymentService');
 
 const transactionRouter = express.Router();
 const escrowRouter = express.Router();
@@ -390,8 +391,6 @@ escrowRouter.post('/:id/dispute', authenticateToken, async (req, res) => {
 //   DIRECT LISTING: Buyer pays property + VeriProp(5%, acting as agent)
 //   Landlord ALWAYS gets 100% of property price
 // ════════════════════════════════════════════════════════════
-
-const paymentService = require('./services/paymentService');
 
 // ─── FEE CALCULATOR — Preview fees before payment ────────────
 paymentRouter.post('/calculate-fees', authenticateToken, async (req, res) => {
