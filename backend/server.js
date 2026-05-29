@@ -331,7 +331,7 @@ try {
 
   console.log('✅ All routes loaded');
 } catch (err) {
-  console.error('❌ Route loading error:', err.message);
+  console.error('❌ Route loading error:', err.message, err.stack);
 }
 
 // ── 404 & ERROR ────────────────────────────────────────────
