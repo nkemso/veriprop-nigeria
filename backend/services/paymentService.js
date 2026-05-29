@@ -169,24 +169,52 @@ async function createSubaccount(bankCode, accountNumber, businessName, email) {
 // 3A. CREATE SPLIT — Dynamic split for each transaction
 //     Paystack auto-routes money to all parties on payment
 // ================================================================
+// ================================================================
+// 3A. CREATE SPLIT — Dynamic split for each transaction
+//     
+//     AGENT PAYOUT MODES (landlord controls this):
+//     
+//     Mode A: "platform_split" (default)
+//       → Paystack splits agent commission directly to agent's bank
+//       → Landlord and agent both get paid simultaneously
+//       → Framed as: "Automate your agency commission splits"
+//     
+//     Mode B: "landlord_handles"
+//       → Agent's commission is included in landlord's payout
+//       → Landlord receives property price + agent commission
+//       → Landlord pays agent themselves (traditional Nigerian way)
+//       → Framed as: "I'll handle my agent's payment myself"
+//     
+//     Landlord chooses during property listing setup.
+// ================================================================
 async function createTransactionSplit({
   transactionId,
   landlordSubaccount,
   agentSubaccount,
   fees,
+  agentPayoutMode = 'platform_split', // or 'landlord_handles'
 }) {
   const subaccounts = [];
 
-  // Landlord gets property price (as percentage of total buyer pays)
-  if (landlordSubaccount) {
-    const landlordShare = Math.round((fees.propertyPrice / fees.totalBuyerPays) * 100);
-    subaccounts.push({ subaccount: landlordSubaccount, share: landlordShare });
-  }
+  if (agentPayoutMode === 'landlord_handles' || !agentSubaccount) {
+    // MODE B: Landlord gets property price + agent commission combined
+    // Landlord handles agent payment offline (traditional Nigerian practice)
+    if (landlordSubaccount) {
+      const landlordTotal = fees.propertyPrice + fees.agentCommission;
+      const landlordShare = Math.round((landlordTotal / fees.totalBuyerPays) * 100);
+      subaccounts.push({ subaccount: landlordSubaccount, share: landlordShare });
+    }
+  } else {
+    // MODE A: Platform splits to both landlord and agent separately
+    if (landlordSubaccount) {
+      const landlordShare = Math.round((fees.propertyPrice / fees.totalBuyerPays) * 100);
+      subaccounts.push({ subaccount: landlordSubaccount, share: landlordShare });
+    }
 
-  // Agent gets commission
-  if (agentSubaccount && fees.agentCommission > 0) {
-    const agentShare = Math.round((fees.agentCommission / fees.totalBuyerPays) * 100);
-    subaccounts.push({ subaccount: agentSubaccount, share: agentShare });
+    if (agentSubaccount && fees.agentCommission > 0) {
+      const agentShare = Math.round((fees.agentCommission / fees.totalBuyerPays) * 100);
+      subaccounts.push({ subaccount: agentSubaccount, share: agentShare });
+    }
   }
 
   // VAT pool
@@ -196,20 +224,22 @@ async function createTransactionSplit({
     subaccounts.push({ subaccount: vatSubaccount, share: vatShare });
   }
 
-  // VeriProp Revenue gets platform fee (remainder goes to main account automatically)
-  // Paystack sends whatever isn't allocated to subaccounts to your main account
+  // VeriProp Revenue gets platform fee (remainder → main account automatically)
 
   const data = await paystackFetch('/split', 'POST', {
     name: `VP-Split-${transactionId}`,
     type: 'percentage',
     currency: 'NGN',
     subaccounts,
-    bearer_type: 'account', // Main account (VeriProp) bears Paystack fees
+    bearer_type: 'account',
   });
+
+  console.log(`[Payment] Split created: ${data.data.split_code} | Mode: ${agentPayoutMode} | Subaccounts: ${subaccounts.length}`);
 
   return {
     splitCode: data.data.split_code,
     splitId: data.data.id,
+    agentPayoutMode,
   };
 }
 
@@ -227,6 +257,7 @@ async function initializeTransaction({
   propertyTitle,
   landlordSubaccount,
   agentSubaccount,
+  agentPayoutMode,
   callbackUrl,
 }) {
   const fees = calculateFees(propertyPrice, agentRate, hasAgent);
@@ -266,6 +297,7 @@ async function initializeTransaction({
         landlordSubaccount,
         agentSubaccount,
         fees,
+        agentPayoutMode: agentPayoutMode || 'platform_split',
       });
       payload.split_code = split.splitCode;
       console.log(`[Payment] Split created: ${split.splitCode} for transaction ${transactionId}`);
