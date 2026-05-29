@@ -97,6 +97,10 @@ app.get('/api/v1/ops/comms', async (req, res) => {
     const identityService = require('./services/identityService');
     results.identity = await identityService.testConnection();
   } catch (e) { results.identity = { connected: false, message: e.message }; }
+  try {
+    const storageService = require('./services/storageService');
+    results.storage = await storageService.testConnection();
+  } catch (e) { results.storage = { connected: false, message: e.message }; }
   res.json({ status: 'ok', comms: results, timestamp: new Date().toISOString() });
 });
 
@@ -238,6 +242,65 @@ try {
     } catch (err) {
       console.error('[Telegram Login]', err.message);
       res.status(500).json({ success: false, message: 'Telegram login failed' });
+    }
+  });
+
+  // ── MEDIA PROXY (serves Telegram-stored files) ──────────────
+  app.get('/api/v1/media/:fileId', async (req, res) => {
+    try {
+      const storage = require('./services/storageService');
+      const file = await storage.proxyFile(req.params.fileId);
+      if (!file) return res.status(404).json({ error: 'File not found' });
+
+      res.set('Content-Type', file.contentType);
+      res.set('Cache-Control', 'public, max-age=31536000, immutable'); // Cache 1 year
+      res.send(file.buffer);
+    } catch (err) {
+      res.status(500).json({ error: 'File retrieval failed' });
+    }
+  });
+
+  // ── IMAGE UPLOAD ENDPOINT ──────────────────────────────────
+  app.post('/api/v1/media/upload', express.json({ limit: '20mb' }), async (req, res) => {
+    try {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader) return res.status(401).json({ success: false, message: 'Auth required' });
+
+      const storage = require('./services/storageService');
+      const { image, filename, caption } = req.body;
+
+      if (!image) return res.status(400).json({ success: false, message: 'Image data required' });
+
+      const result = await storage.uploadImage(image, filename || 'upload.jpg', caption || '');
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // ── BATCH IMAGE UPLOAD ─────────────────────────────────────
+  app.post('/api/v1/media/upload-batch', express.json({ limit: '50mb' }), async (req, res) => {
+    try {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader) return res.status(401).json({ success: false, message: 'Auth required' });
+
+      const storage = require('./services/storageService');
+      const { images, title } = req.body;
+
+      if (!images || !Array.isArray(images) || images.length === 0) {
+        return res.status(400).json({ success: false, message: 'Images array required' });
+      }
+
+      if (images.length > 20) {
+        return res.status(400).json({ success: false, message: 'Maximum 20 images per upload' });
+      }
+
+      const results = await storage.uploadPropertyImages(images, title || 'Property');
+      const urls = results.filter(r => r.success).map(r => r.url);
+
+      res.json({ success: true, urls, count: urls.length, provider: results[0]?.provider });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
     }
   });
 
