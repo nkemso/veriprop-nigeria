@@ -142,6 +142,178 @@ adminRouter.patch('/users/:id/ban', requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN),
   }
 });
 
+// ─── ROLE MANAGEMENT (Super Admin only) ──────────────────────
+// Change user role — only super_admin can promote/demote
+adminRouter.patch('/users/:id/role', requireRole(ROLES.SUPER_ADMIN), async (req, res) => {
+  try {
+    const { role } = req.body;
+    const targetId = req.params.id;
+
+    // Validate role
+    const promotableRoles = ['admin', 'compliance_officer', 'agent', 'agency', 'developer', 'buyer', 'seller', 'tenant', 'landlord', 'lawyer', 'surveyor'];
+    if (!promotableRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid role. Allowed: ${promotableRoles.join(', ')}`,
+        note: 'super_admin role cannot be assigned via this endpoint.',
+      });
+    }
+
+    // Prevent self-demotion
+    if (targetId === req.user.id) {
+      return res.status(400).json({
+        success: false,
+        message: '⛔ You cannot change your own role.',
+      });
+    }
+
+    // Prevent demoting another super_admin
+    const target = await db.user.findUnique({
+      where: { id: targetId },
+      select: { role: true, email: true, firstName: true, lastName: true },
+    });
+
+    if (!target) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (target.role === 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: '⛔ Cannot change the role of a super_admin.',
+      });
+    }
+
+    const oldRole = target.role;
+
+    const updated = await db.user.update({
+      where: { id: targetId },
+      data: { role },
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        role: true, isVerified: true, isActive: true,
+      },
+    });
+
+    console.log(`[ADMIN] Role change: ${target.email} ${oldRole} → ${role} by ${req.user.email || req.user.id}`);
+
+    res.json({
+      success: true,
+      message: `✅ ${target.firstName} ${target.lastName} role changed from ${oldRole} to ${role}`,
+      user: updated,
+    });
+  } catch (error) {
+    console.error('[ADMIN] Role change error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to change role' });
+  }
+});
+
+// ─── LIST ADMIN TEAM ─────────────────────────────────────────
+adminRouter.get('/team', async (req, res) => {
+  try {
+    const adminRoles = ['super_admin', 'admin', 'compliance_officer'];
+    const team = await db.user.findMany({
+      where: { role: { in: adminRoles } },
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        role: true, isVerified: true, isActive: true, isBanned: true,
+        lastLoginAt: true, createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    res.json({
+      success: true,
+      team,
+      roles: {
+        super_admin: 'Full system access. Can manage all users, properties, transactions, and other admins.',
+        admin: 'Can moderate properties, manage users (ban/unban), handle escrow and disputes.',
+        compliance_officer: 'Can review flagged content, audit transactions, and manage compliance.',
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch admin team' });
+  }
+});
+
+// ─── VERIFY USER MANUALLY (Admin) ────────────────────────────
+adminRouter.patch('/users/:id/verify', requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
+  try {
+    const { tier } = req.body;
+    const validTiers = ['TIER1_BVN', 'TIER2_GOVT_ID', 'TIER3_NOTARY'];
+
+    if (!validTiers.includes(tier)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid tier. Allowed: ${validTiers.join(', ')}`,
+      });
+    }
+
+    const data = {
+      verificationTier: tier,
+      isVerified: true,
+    };
+
+    if (tier === 'TIER1_BVN') data.bvnVerified = true;
+    if (tier === 'TIER2_GOVT_ID') { data.bvnVerified = true; data.ninVerified = true; }
+    if (tier === 'TIER3_NOTARY') {
+      data.bvnVerified = true;
+      data.ninVerified = true;
+      data.notaryVerified = true;
+      data.notaryVerifiedAt = new Date();
+    }
+
+    const updated = await db.user.update({
+      where: { id: req.params.id },
+      data,
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        role: true, verificationTier: true, isVerified: true,
+      },
+    });
+
+    console.log(`[ADMIN] Manual verification: ${updated.email} → ${tier} by ${req.user.email || req.user.id}`);
+
+    res.json({
+      success: true,
+      message: `✅ ${updated.firstName} ${updated.lastName} manually verified to ${tier}`,
+      user: updated,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to verify user' });
+  }
+});
+
+// ─── DEACTIVATE / REACTIVATE USER ────────────────────────────
+adminRouter.patch('/users/:id/active', requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
+  try {
+    const { active } = req.body;
+
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ success: false, message: '⛔ Cannot deactivate your own account.' });
+    }
+
+    const target = await db.user.findUnique({ where: { id: req.params.id }, select: { role: true } });
+    if (target?.role === 'super_admin') {
+      return res.status(403).json({ success: false, message: '⛔ Cannot deactivate a super_admin.' });
+    }
+
+    const updated = await db.user.update({
+      where: { id: req.params.id },
+      data: { isActive: !!active },
+      select: { id: true, email: true, firstName: true, lastName: true, isActive: true },
+    });
+
+    res.json({
+      success: true,
+      message: active ? `✅ ${updated.firstName} reactivated` : `⛔ ${updated.firstName} deactivated`,
+      user: updated,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to update user status' });
+  }
+});
+
 // Release escrow (admin)
 adminRouter.post('/escrow/:id/release', requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   try {
