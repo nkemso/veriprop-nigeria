@@ -42,6 +42,7 @@ const db = require('./db');
 const config = require('./config');
 const { generateTokens, authenticateToken, requireRole, ROLES } = require('./roleAuth');
 const diditKYC = require('./diditKYCService');
+const identityService = require('./services/identityService');
 
 const authRouter = express.Router();
 const userRouter = express.Router();
@@ -420,7 +421,39 @@ verifyRouter.post('/bvn', authenticateToken, [
       });
     }
 
-    // Store the BVN hash — will be verified when Didit KYC session completes
+    // ── REAL VERIFICATION against NIBSS ──
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true },
+    });
+
+    const bvnResult = await identityService.verifyBVN(bvn);
+
+    if (!bvnResult.verified) {
+      console.warn(`[BVN] ❌ NIBSS verification FAILED for user ${userId}: ${bvnResult.message}`);
+      return res.json({
+        success: false,
+        message: bvnResult.message || '❌ BVN not found in NIBSS database. Please enter your correct BVN.',
+        provider: bvnResult.provider,
+        verificationTier: 'NONE',
+        tier: 0,
+      });
+    }
+
+    // Cross-reference name from NIBSS with registered name
+    const nameMatch = identityService.matchNames(bvnResult.data, user.firstName, user.lastName);
+    if (!nameMatch.match) {
+      console.warn(`[BVN] ❌ Name mismatch for user ${userId}: API="${bvnResult.data?.firstName} ${bvnResult.data?.lastName}" vs User="${user.firstName} ${user.lastName}"`);
+      return res.json({
+        success: false,
+        message: '❌ The name on this BVN does not match your registered name. Please ensure you registered with your real name.',
+        provider: bvnResult.provider,
+        verificationTier: 'NONE',
+        tier: 0,
+      });
+    }
+
+    // ✅ VERIFIED — store hash and update tier
     await db.user.update({
       where: { id: userId },
       data: {
@@ -430,13 +463,15 @@ verifyRouter.post('/bvn', authenticateToken, [
       },
     });
 
-    console.log(`[BVN] BVN registered for user ${userId} (pending document verification)`);
+    console.log(`[BVN] ✅ BVN verified for user ${userId} via ${bvnResult.provider} (name match: ${nameMatch.score}%)`);
 
     return res.json({
       success: true,
-      message: '✅ BVN registered. Complete document verification to fully verify your identity.',
+      message: '✅ BVN verified against NIBSS government database!',
       verificationTier: 'TIER1_BVN',
       tier: 1,
+      provider: bvnResult.provider,
+      nameMatch: nameMatch.score,
     });
   } catch (error) {
     console.error('[BVN] Error:', error.message);
@@ -545,6 +580,39 @@ verifyRouter.post('/nin', authenticateToken, [
       });
     }
 
+    // ── REAL VERIFICATION against NIMC ──
+    const userForNin = await db.user.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true },
+    });
+
+    const ninResult = await identityService.verifyNIN(nin);
+
+    if (!ninResult.verified) {
+      console.warn(`[NIN] ❌ NIMC verification FAILED for user ${userId}: ${ninResult.message}`);
+      return res.json({
+        success: false,
+        message: ninResult.message || '❌ NIN not found in NIMC database. Please enter your correct NIN.',
+        provider: ninResult.provider,
+        verificationTier: 'TIER1_BVN',
+        tier: 1,
+      });
+    }
+
+    // Cross-reference name
+    const ninNameMatch = identityService.matchNames(ninResult.data, userForNin.firstName, userForNin.lastName);
+    if (!ninNameMatch.match) {
+      console.warn(`[NIN] ❌ Name mismatch for user ${userId}`);
+      return res.json({
+        success: false,
+        message: '❌ The name on this NIN does not match your registered name.',
+        provider: ninResult.provider,
+        verificationTier: 'TIER1_BVN',
+        tier: 1,
+      });
+    }
+
+    // ✅ VERIFIED
     await db.user.update({
       where: { id: userId },
       data: {
@@ -555,13 +623,15 @@ verifyRouter.post('/nin', authenticateToken, [
       },
     });
 
-    console.log(`[NIN] NIN registered for user ${userId} (pending document verification)`);
+    console.log(`[NIN] ✅ NIN verified for user ${userId} via ${ninResult.provider} (name match: ${ninNameMatch.score}%)`);
 
     return res.json({
       success: true,
-      message: '✅ NIN registered. Complete document verification to fully verify your identity.',
+      message: '✅ NIN verified against NIMC government database!',
       verificationTier: 'TIER2_GOVT_ID',
       tier: 2,
+      provider: ninResult.provider,
+      nameMatch: ninNameMatch.score,
     });
   } catch (error) {
     console.error('[NIN] Error:', error.message);

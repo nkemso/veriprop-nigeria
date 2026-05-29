@@ -93,6 +93,10 @@ app.get('/api/v1/ops/comms', async (req, res) => {
     const telegramService = require('./services/telegramService');
     results.telegram = await telegramService.testConnection();
   } catch (e) { results.telegram = { connected: false, message: e.message }; }
+  try {
+    const identityService = require('./services/identityService');
+    results.identity = await identityService.testConnection();
+  } catch (e) { results.identity = { connected: false, message: e.message }; }
   res.json({ status: 'ok', comms: results, timestamp: new Date().toISOString() });
 });
 
