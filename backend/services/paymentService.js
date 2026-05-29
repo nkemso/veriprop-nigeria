@@ -83,18 +83,19 @@ function calculateFees(propertyPrice, agentRate = 0, hasAgent = true) {
   // Validate agent rate
   let agentPercent = hasAgent ? Math.min(Math.max(parseFloat(agentRate) || FEES.AGENT_MIN, FEES.AGENT_MIN), FEES.AGENT_MAX) : 0;
 
-  // Platform fee
+  // Platform fee (VeriProp's revenue — kept in full)
   const platformPercent = hasAgent ? FEES.PLATFORM_FEE_WITH_AGENT : FEES.PLATFORM_FEE_DIRECT;
   const platformFee = Math.round(price * platformPercent);
 
   // Agent commission
   const agentCommission = hasAgent ? Math.round(price * agentPercent) : 0;
 
-  // VAT on platform fee only
+  // VAT — 7.5% ADDED ON TOP of platform fee (paid by buyer, remitted to FIRS)
+  // VeriProp collects this on behalf of FIRS. It is NOT deducted from platform revenue.
   const vatAmount = Math.round(platformFee * FEES.VAT_RATE);
 
-  // Total buyer pays
-  const totalBuyerPays = price + agentCommission + platformFee;
+  // Total buyer pays (property + agent + platform fee + VAT on platform fee)
+  const totalBuyerPays = price + agentCommission + platformFee + vatAmount;
 
   // Paystack fee (on total amount)
   const paystackFee = Math.min(
@@ -102,8 +103,8 @@ function calculateFees(propertyPrice, agentRate = 0, hasAgent = true) {
     FEES.PAYSTACK_CAP
   );
 
-  // Net platform revenue (after VAT)
-  const platformNet = platformFee - vatAmount;
+  // VeriProp keeps 100% of platform fee. VAT is separate — held for FIRS.
+  const platformNet = platformFee; // Full amount — VAT is NOT deducted from this
 
   return {
     propertyPrice: price,
@@ -113,6 +114,7 @@ function calculateFees(propertyPrice, agentRate = 0, hasAgent = true) {
     platformPercent: platformPercent * 100,
     platformNet,
     vatAmount,
+    vatNote: 'VAT is collected from buyer on behalf of FIRS. Not deducted from platform revenue.',
     paystackFee,
     totalBuyerPays,
     landlordReceives: price,
@@ -123,12 +125,13 @@ function calculateFees(propertyPrice, agentRate = 0, hasAgent = true) {
       'Property Price': `₦${price.toLocaleString()}`,
       ...(hasAgent && { [`Agent Fee (${(agentPercent * 100)}%)`]: `₦${agentCommission.toLocaleString()}` }),
       [`Platform Fee (${(platformPercent * 100)}%)`]: `₦${platformFee.toLocaleString()}`,
+      'VAT (7.5% on platform fee)': `₦${vatAmount.toLocaleString()} — collected for FIRS`,
       'Total You Pay': `₦${totalBuyerPays.toLocaleString()}`,
       '---': '---',
       'Landlord Receives': `₦${price.toLocaleString()} (100%)`,
       ...(hasAgent && { 'Agent Receives': `₦${agentCommission.toLocaleString()}` }),
-      'VeriProp Receives': `₦${platformFee.toLocaleString()} (before VAT)`,
-      'VAT (7.5% on platform fee)': `₦${vatAmount.toLocaleString()}`,
+      'VeriProp Keeps': `₦${platformFee.toLocaleString()} (full platform fee)`,
+      'FIRS Gets': `₦${vatAmount.toLocaleString()} (VAT — remitted by VeriProp)`,
       'Paystack Fee': `₦${paystackFee.toLocaleString()} (auto-deducted)`,
     },
   };
