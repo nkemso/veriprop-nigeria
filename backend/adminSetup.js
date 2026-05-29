@@ -48,22 +48,7 @@ setupRouter.post('/setup', async (req, res) => {
       });
     }
 
-    // 2. Validate inputs
-    if (!email || !password || !firstName || !lastName || !phone) {
-      return res.status(400).json({
-        success: false,
-        message: 'All fields required: email, password, firstName, lastName, phone',
-      });
-    }
-
-    if (password.length < 12) {
-      return res.status(400).json({
-        success: false,
-        message: 'Admin password must be at least 12 characters.',
-      });
-    }
-
-    // 3. Check if super_admin already exists
+    // 2. Check if super_admin already exists
     const existingAdmin = await db.user.findFirst({
       where: { role: 'super_admin' },
       select: { id: true, email: true },
@@ -72,11 +57,15 @@ setupRouter.post('/setup', async (req, res) => {
     if (existingAdmin) {
       return res.status(409).json({
         success: false,
-        message: `⛔ Super admin already exists (${existingAdmin.email}). Only one super_admin is allowed. Use the admin dashboard to create additional admin accounts.`,
+        message: `⛔ Super admin already exists (${existingAdmin.email}). Only one super_admin is allowed.`,
       });
     }
 
-    // 4. Check if email already registered
+    // 3. If email provided, check if user exists — upgrade them directly
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required.' });
+    }
+
     const existingUser = await db.user.findUnique({ where: { email } });
     if (existingUser) {
       // Upgrade existing user to super_admin
@@ -105,6 +94,21 @@ setupRouter.post('/setup', async (req, res) => {
         user: upgraded,
         tokens,
         adminUrl: '/admin/dashboard',
+      });
+    }
+
+    // 4. For new accounts, validate all fields
+    if (!password || !firstName || !lastName || !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'New admin account requires: email, password (12+ chars), firstName, lastName, phone',
+      });
+    }
+
+    if (password.length < 12) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin password must be at least 12 characters.',
       });
     }
 
