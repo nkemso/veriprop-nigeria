@@ -422,7 +422,7 @@ verifyRouter.post('/bvn', authenticateToken, [
     }
 
     // ── REAL VERIFICATION against NIBSS ──
-    const user = await db.user.findUnique({
+    const bvnUser = await db.user.findUnique({
       where: { id: userId },
       select: { firstName: true, lastName: true },
     });
@@ -441,9 +441,9 @@ verifyRouter.post('/bvn', authenticateToken, [
     }
 
     // Cross-reference name from NIBSS with registered name
-    const nameMatch = identityService.matchNames(bvnResult.data, user.firstName, user.lastName);
+    const nameMatch = identityService.matchNames(bvnResult.data, bvnUser.firstName, bvnUser.lastName);
     if (!nameMatch.match) {
-      console.warn(`[BVN] ❌ Name mismatch for user ${userId}: API="${bvnResult.data?.firstName} ${bvnResult.data?.lastName}" vs User="${user.firstName} ${user.lastName}"`);
+      console.warn(`[BVN] ❌ Name mismatch for user ${userId}: API="${bvnResult.data?.firstName} ${bvnResult.data?.lastName}" vs User="${bvnUser.firstName} ${bvnUser.lastName}"`);
       return res.json({
         success: false,
         message: '❌ The name on this BVN does not match your registered name. Please ensure you registered with your real name.',
