@@ -345,18 +345,37 @@ verifyRouter.post('/bvn', authenticateToken, [
     const userId = req.user.id;
 
     // ── STRUCTURAL VALIDATION ──
-    // Real Nigerian BVNs always start with "22"
+    // Real Nigerian BVNs: 11 digits, always start with "22"
     if (!/^22\d{9}$/.test(bvn)) {
       return res.status(400).json({
         success: false,
         message: '❌ Invalid BVN. Nigerian BVNs are 11 digits starting with 22.',
       });
     }
-    // Reject obviously fake patterns (all same digit, sequential)
-    if (/^(\d)\1{10}$/.test(bvn) || bvn === '22222222222') {
+
+    // Reject fake patterns: repeated digits, sequential, common test numbers
+    const bvnDigits = bvn.split('').map(Number);
+    const uniqueDigits = new Set(bvnDigits).size;
+    const isSequential = bvnDigits.every((d, i) => i === 0 || d === (bvnDigits[i-1] + 1) % 10);
+    const isReverse = bvnDigits.every((d, i) => i === 0 || d === (bvnDigits[i-1] - 1 + 10) % 10);
+    const knownFakes = ['22222222222', '22000000000', '22123456789', '22111111111', '22100000000', '22012345678', '22987654321'];
+
+    if (uniqueDigits <= 3 || isSequential || isReverse || knownFakes.includes(bvn)) {
       return res.status(400).json({
         success: false,
-        message: '❌ Invalid BVN. Please enter your real Bank Verification Number.',
+        message: '❌ This does not appear to be a valid BVN. Please enter your real Bank Verification Number as issued by your bank.',
+      });
+    }
+
+    // Entropy check — real BVNs have reasonable digit distribution
+    const digitFreq = {};
+    for (const d of bvnDigits) digitFreq[d] = (digitFreq[d] || 0) + 1;
+    const maxFreq = Math.max(...Object.values(digitFreq));
+    if (maxFreq >= 7) {
+      // 7+ of the same digit in 11 = almost certainly fake
+      return res.status(400).json({
+        success: false,
+        message: '❌ Invalid BVN pattern. Please enter the real BVN from your bank.',
       });
     }
 
@@ -447,18 +466,36 @@ verifyRouter.post('/nin', authenticateToken, [
     const userId = req.user.id;
 
     // ── STRUCTURAL VALIDATION ──
-    // Nigerian NINs are 11 digits, no fixed prefix but reject fake patterns
+    // Nigerian NINs: exactly 11 digits
     if (!/^\d{11}$/.test(nin)) {
       return res.status(400).json({
         success: false,
         message: '❌ Invalid NIN. Must be exactly 11 digits.',
       });
     }
-    // Reject obviously fake patterns (all same digit, sequential, etc.)
-    if (/^(\d)\1{10}$/.test(nin) || /^(01234567890|12345678901|98765432109|00000000000)$/.test(nin)) {
+
+    // Reject fake patterns
+    const ninDigits = nin.split('').map(Number);
+    const ninUnique = new Set(ninDigits).size;
+    const ninSequential = ninDigits.every((d, i) => i === 0 || d === (ninDigits[i-1] + 1) % 10);
+    const ninReverse = ninDigits.every((d, i) => i === 0 || d === (ninDigits[i-1] - 1 + 10) % 10);
+    const ninFakes = ['00000000000', '11111111111', '12345678901', '01234567890', '98765432109', '99999999999', '10000000000'];
+
+    if (ninUnique <= 2 || ninSequential || ninReverse || ninFakes.includes(nin)) {
       return res.status(400).json({
         success: false,
-        message: '❌ Invalid NIN. Please enter your real National Identity Number.',
+        message: '❌ This does not appear to be a valid NIN. Please enter your real National Identity Number as issued by NIMC.',
+      });
+    }
+
+    // Entropy check
+    const ninFreq = {};
+    for (const d of ninDigits) ninFreq[d] = (ninFreq[d] || 0) + 1;
+    const ninMaxFreq = Math.max(...Object.values(ninFreq));
+    if (ninMaxFreq >= 8) {
+      return res.status(400).json({
+        success: false,
+        message: '❌ Invalid NIN pattern. Please enter the real NIN from your NIMC slip.',
       });
     }
 

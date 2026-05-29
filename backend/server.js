@@ -120,6 +120,7 @@ app.get('/api/v1/ops/health', async (req, res) => {
 
 // ── ROUTES ─────────────────────────────────────────────────
 try {
+  const { setupRouter: adminSetup } = require('./adminSetup');
   const phase1 = require('./phase1Identity');
   const phase2 = require('./phase2Marketplace');
   const phase3 = require('./phase3Transaction');
@@ -142,6 +143,7 @@ try {
   app.use('/api/v1/multisig', multiSigRoutes);
   app.use('/api/v1/chat', chatRouter);
   app.use('/api/v1/legal', legalService.legalRouter);
+  app.use('/api/v1/admin', adminSetup); // setup + promote (setup requires key, promote requires super_admin auth)
   app.use('/api/v1/admin', phase45.adminRouter);
   app.use('/api/v1/portfolio', phase45.portfolioRouter);
   app.use('/api/v1/support', phase45.supportRouter);
