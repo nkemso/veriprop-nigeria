@@ -23,6 +23,22 @@ export default function Dashboard() {
 
   if (loading) return <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter,sans-serif' }}><p>Loading...</p></div>
 
+  // Redirect admins to admin dashboard
+  const adminRoles = ['super_admin', 'admin', 'compliance_officer']
+  if (user && adminRoles.includes(user.role)) {
+    return (
+      <div style={{ minHeight:'100vh', background:'#0d1117', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter,sans-serif', flexDirection:'column', gap:'1rem', color:'#f0f6fc', padding:'2rem' }}>
+        <div style={{ fontSize:'3rem' }}>🛡️</div>
+        <h2 style={{ color:'#60a5fa', fontWeight:800, margin:0 }}>Admin Account Detected</h2>
+        <p style={{ color:'#8b949e', margin:0 }}>Logged in as <strong style={{ color:'#f59e0b', textTransform:'capitalize' }}>{user.role?.replace('_', ' ')}</strong></p>
+        <div style={{ display:'flex', gap:'1rem', flexWrap:'wrap', justifyContent:'center', marginTop:'0.5rem' }}>
+          <a href="/admin/dashboard" style={{ background:'#1d4ed8', color:'#fff', padding:'0.75rem 1.5rem', borderRadius:'0.75rem', fontWeight:700, textDecoration:'none', fontSize:'1rem' }}>🛡️ Go to Admin Dashboard →</a>
+          <a href="/properties" style={{ background:'#21262d', color:'#8b949e', padding:'0.75rem 1.5rem', borderRadius:'0.75rem', fontWeight:700, textDecoration:'none', border:'1px solid #30363d' }}>🏠 Browse Properties</a>
+        </div>
+      </div>
+    )
+  }
+
   const stats = portfolio?.stats || {}
 
   return (

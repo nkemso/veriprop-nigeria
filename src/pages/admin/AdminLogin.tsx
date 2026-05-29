@@ -21,13 +21,41 @@ export default function AdminLogin() {
       })
       const data = await res.json()
       if (data.success) {
+        // Save tokens first
+        localStorage.setItem('accessToken', data.tokens.accessToken)
+        localStorage.setItem('refreshToken', data.tokens.refreshToken)
+
+        // Fetch fresh user profile from /me to get latest role
+        try {
+          const meRes = await fetch(\`\${API}/api/v1/users/me\`, {
+            headers: { Authorization: \`Bearer \${data.tokens.accessToken}\` }
+          })
+          const meData = await meRes.json()
+          if (meData.success && meData.user) {
+            const freshUser = meData.user
+            localStorage.setItem('user', JSON.stringify(freshUser))
+
+            if (!ADMIN_ROLES.includes(freshUser.role)) {
+              setError(\`Access denied. Your role is "\${freshUser.role}". Admin credentials required.\`)
+              localStorage.clear()
+              setLoading(false)
+              return
+            }
+
+            window.location.href = '/admin/dashboard'
+            return
+          }
+        } catch (e) {
+          // Fallback to login response data
+        }
+
+        // Fallback: use login response
         if (!ADMIN_ROLES.includes(data.user.role)) {
           setError('Access denied. Admin credentials required.')
+          localStorage.clear()
           setLoading(false)
           return
         }
-        localStorage.setItem('accessToken', data.tokens.accessToken)
-        localStorage.setItem('refreshToken', data.tokens.refreshToken)
         localStorage.setItem('user', JSON.stringify(data.user))
         window.location.href = '/admin/dashboard'
       } else {

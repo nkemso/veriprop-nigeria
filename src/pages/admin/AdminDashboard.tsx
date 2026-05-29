@@ -423,16 +423,17 @@ export default function AdminDashboard() {
 
               {/* ── SETTINGS ── */}
               {tab === 'settings' && (
-                <div style={{ maxWidth: 600 }}>
+                <div style={{ maxWidth: 700 }}>
+                  {/* Platform Settings */}
                   <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: '0.875rem', padding: '1.5rem', marginBottom: '1rem' }}>
                     <h3 style={{ color: '#f0f6fc', fontWeight: 700, margin: '0 0 1rem' }}>⚙️ Platform Settings</h3>
                     {[
-                      { label: 'Escrow Fee', value: '1.5%', type: 'text' },
-                      { label: 'Platform Split', value: '5%', type: 'text' },
-                      { label: 'Agent Commission', value: '10%', type: 'text' },
-                      { label: 'VAT Rate', value: '7.5%', type: 'text' },
-                      { label: 'AI Moderation', value: 'Enabled', type: 'toggle' },
-                      { label: 'Escrow Expiry (days)', value: '30', type: 'text' },
+                      { label: 'Escrow Fee', value: '1.5%' },
+                      { label: 'Platform Split', value: '5%' },
+                      { label: 'Agent Commission', value: '10%' },
+                      { label: 'VAT Rate', value: '7.5%' },
+                      { label: 'AI Moderation', value: 'Enabled' },
+                      { label: 'Escrow Expiry (days)', value: '30' },
                     ].map(s => (
                       <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderBottom: '1px solid #21262d' }}>
                         <span style={{ color: '#8b949e', fontSize: '0.875rem' }}>{s.label}</span>
@@ -440,17 +441,53 @@ export default function AdminDashboard() {
                       </div>
                     ))}
                   </div>
-                  <div style={{ background: '#161b22', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '0.875rem', padding: '1.5rem' }}>
-                    <h3 style={{ color: '#f87171', fontWeight: 700, margin: '0 0 0.5rem' }}>⚠️ Admin Credentials</h3>
-                    <p style={{ color: '#6e7681', fontSize: '0.875rem', margin: '0 0 1rem' }}>
-                      To create admin accounts, register a user then update their role in the database:
+
+                  {/* Role Management */}
+                  <div style={{ background: '#161b22', border: '1px solid #1d4ed830', borderRadius: '0.875rem', padding: '1.5rem', marginBottom: '1rem' }}>
+                    <h3 style={{ color: '#60a5fa', fontWeight: 700, margin: '0 0 0.5rem' }}>👥 Manage Admin Team</h3>
+                    <p style={{ color: '#6e7681', fontSize: '0.8rem', margin: '0 0 1rem' }}>
+                      To promote a user: Go to Users tab → find the user → use the role change below.
                     </p>
-                    <div style={{ background: '#0d1117', borderRadius: '0.5rem', padding: '1rem', fontFamily: 'monospace', fontSize: '0.8rem', color: '#10b981' }}>
-                      {`UPDATE users SET role='super_admin' WHERE email='admin@veripronigeria.com';`}
+                    <div style={{ background: '#0d1117', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+                      <p style={{ color: '#8b949e', fontSize: '0.8rem', margin: '0 0 0.5rem' }}>Change user role (paste in browser console while on this page):</p>
+                      <code style={{ color: '#10b981', fontSize: '0.75rem', lineHeight: 1.8, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+{`// 1. Find user by email
+fetch('/api/v1/admin/users?search=user@email.com', {
+  headers: { Authorization: 'Bearer ' + localStorage.getItem('accessToken') }
+}).then(r=>r.json()).then(d=>console.log('ID:', d.users[0]?.id, 'Role:', d.users[0]?.role))
+
+// 2. Change their role (use ID from step 1)
+fetch('/api/v1/admin/users/USER_ID/role', {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('accessToken') },
+  body: JSON.stringify({ role: 'admin' })
+}).then(r=>r.json()).then(console.log)`}
+                      </code>
                     </div>
-                    <p style={{ color: '#6e7681', fontSize: '0.75rem', marginTop: '0.75rem' }}>
-                      Run this SQL in Railway → PostgreSQL → Data tab after creating the user account.
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {['admin', 'compliance_officer', 'agent', 'developer', 'landlord', 'buyer', 'seller'].map(r => (
+                        <span key={r} style={{ background: '#0d1117', color: '#8b949e', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.7rem', border: '1px solid #21262d' }}>{r}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Admin Team View */}
+                  <div style={{ background: '#161b22', border: '1px solid #10b98130', borderRadius: '0.875rem', padding: '1.5rem' }}>
+                    <h3 style={{ color: '#10b981', fontWeight: 700, margin: '0 0 0.5rem' }}>🛡️ View Admin Team</h3>
+                    <p style={{ color: '#6e7681', fontSize: '0.8rem', margin: '0 0 1rem' }}>
+                      Paste in browser console to see all admin staff:
                     </p>
+                    <code style={{ color: '#10b981', fontSize: '0.75rem', display: 'block', background: '#0d1117', padding: '1rem', borderRadius: '0.5rem', whiteSpace: 'pre-wrap' }}>
+{`fetch('/api/v1/admin/team', {
+  headers: { Authorization: 'Bearer ' + localStorage.getItem('accessToken') }
+}).then(r=>r.json()).then(d=>{
+  console.table(d.team?.map(u=>({
+    name: u.firstName+' '+u.lastName,
+    email: u.email, role: u.role,
+    verified: u.isVerified, active: u.isActive
+  })))
+})`}
+                    </code>
                   </div>
                 </div>
               )}
