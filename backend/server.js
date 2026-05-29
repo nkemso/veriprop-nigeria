@@ -130,27 +130,6 @@ app.get('/api/v1/ops/health', async (req, res) => {
   });
 });
 
-// ── ROUTE DIAGNOSTICS ───────────────────────────────────────
-app.get('/api/v1/ops/route-check', (req, res) => {
-  const errors = [];
-  const loaded = [];
-  const modules = [
-    ['adminSetup', './adminSetup'],
-    ['phase1', './phase1Identity'],
-    ['phase2', './phase2Marketplace'],
-    ['phase3', './phase3Transaction'],
-    ['phase45', './phase45Operations'],
-    ['legal', './legalService'],
-    ['chat', './chat/chatService'],
-    ['multiSig', './multisig/multiSigRoutes'],
-    ['vaults', './vaults/vaultRoutes'],
-  ];
-  for (const [name, path] of modules) {
-    try { require(path); loaded.push(name); } catch(e) { errors.push({ module: name, error: e.message }); }
-  }
-  res.json({ loaded, errors, routesOk: errors.length === 0 });
-});
-
 // ── ROUTES ─────────────────────────────────────────────────
 try {
   const { setupRouter: adminSetup } = require('./adminSetup');
@@ -417,4 +396,4 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('unhandledRejection', (r) => console.error('[UNHANDLED]', r));
 
 module.exports = app;
-// deploy 1780092575
+// 1780092575
