@@ -536,6 +536,11 @@ paymentRouter.post('/webhook', async (req, res) => {
     const rawBody = JSON.stringify(req.body);
     const signature = req.headers['x-paystack-signature'];
 
+    if (!signature) {
+      console.error('[PAY] ⛔ Missing Paystack webhook signature');
+      return res.sendStatus(401);
+    }
+
     if (!paymentService.verifyWebhookSignature(rawBody, signature)) {
       console.error('[PAY] ⛔ Invalid Paystack webhook signature');
       return res.sendStatus(401);

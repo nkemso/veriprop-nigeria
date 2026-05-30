@@ -13,16 +13,37 @@ const config = require('./config');
 const app = express();
 
 // ── SECURITY ──────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: false, // Handled by Vercel for frontend
+  crossOriginEmbedderPolicy: false, // Allow embedding
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+}));
+
+// Additional security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.removeHeader('X-Powered-By');
+  next();
+});
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || config.cors.allowedOrigins.includes(origin) ||
-        config.cors.allowedOrigins.includes('*')) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow all in development
+    // Allow requests with no origin (mobile apps, server-to-server, Postman)
+    if (!origin) return callback(null, true);
+    // In production, restrict to allowed origins only
+    if (config.app.isProduction) {
+      const allowed = config.cors.allowedOrigins;
+      if (allowed.includes(origin) || allowed.includes('*')) {
+        return callback(null, true);
+      }
+      console.warn('[CORS] Blocked request from:', origin);
+      return callback(new Error('CORS: Origin not allowed'), false);
     }
+    // In development, allow all
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -31,15 +52,23 @@ app.use(cors({
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: config.app.isProduction ? 60 : 200, // Tighter in production
   standardHeaders: true,
   legacyHeaders: false,
+  message: { success: false, message: 'Too many requests. Please wait before trying again.' },
 });
 app.use('/api/', limiter);
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: config.app.isProduction ? 10 : 50, // Very tight for auth
+  message: { success: false, message: 'Too many login attempts. Please wait 15 minutes.' },
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: config.app.isProduction ? 10 : 30, // 10 AI requests per minute
+  message: { success: false, message: 'AI rate limit reached. Please wait a moment.' },
 });
 
 // ── MIDDLEWARE ─────────────────────────────────────────────
@@ -179,7 +208,7 @@ try {
   app.use('/api/notifications', phase45.notificationRouter);
 
   // ── AI CONCIERGE (Premium Multi-Model Suite) ─────────────
-  app.post('/api/v1/ai/chat', express.json(), async (req, res) => {
+  app.post('/api/v1/ai/chat', aiLimiter, express.json(), async (req, res) => {
     try {
       const concierge = require('./services/aiConciergeService');
       const { message, role, language } = req.body;

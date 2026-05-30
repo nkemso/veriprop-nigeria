@@ -378,7 +378,7 @@ verifyRouter.post('/nin', authenticateToken, [
 
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { ninVerified: true, ninHash: true },
+      select: { ninVerified: true },
     });
 
     if (!user) {
@@ -557,8 +557,12 @@ verifyRouter.post('/didit-webhook', express.raw({ type: 'application/json' }), a
     const signature = req.headers['x-signature-v2'];
     const timestamp = req.headers['x-timestamp'];
 
-    // Verify webhook signature
-    if (signature && !diditKYC.verifyWebhookSignature(rawBody, signature, timestamp)) {
+    // Verify webhook signature — MANDATORY
+    if (!signature) {
+      console.error('[Didit Webhook] No signature header — rejecting');
+      return res.status(401).json({ error: 'Missing webhook signature' });
+    }
+    if (!diditKYC.verifyWebhookSignature(rawBody, signature, timestamp)) {
       console.error('[Didit Webhook] Invalid signature — rejecting');
       return res.status(401).json({ error: 'Invalid webhook signature' });
     }
