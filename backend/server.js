@@ -178,6 +178,38 @@ try {
   app.use('/api/support', phase45.supportRouter);
   app.use('/api/notifications', phase45.notificationRouter);
 
+  // ── TENANCY AGREEMENT (Optional Add-on) ──────────────────
+  app.get('/api/v1/legal/tenancy/states', (req, res) => {
+    const ta = require('./services/tenancyAgreementService');
+    res.json({ success: true, states: ta.getAvailableStates() });
+  });
+
+  app.get('/api/v1/legal/tenancy/rules/:state', (req, res) => {
+    const ta = require('./services/tenancyAgreementService');
+    const rules = ta.getStateRules(req.params.state);
+    res.json({ success: true, state: req.params.state, rules });
+  });
+
+  app.post('/api/v1/legal/tenancy/generate', express.json(), async (req, res) => {
+    try {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader) return res.status(401).json({ success: false, message: 'Auth required' });
+
+      const ta = require('./services/tenancyAgreementService');
+      const agreement = ta.generateAgreement(req.body);
+
+      res.json({
+        success: true,
+        agreement,
+        state: req.body.state,
+        governingLaw: ta.getStateRules(req.body.state).governingLaw,
+        disclaimer: 'This is a standard template. VeriProp recommends both parties review with a qualified legal practitioner before signing.',
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   // ── TELEGRAM BOT WEBHOOK ──────────────────────────────────
   app.post('/api/v1/telegram/webhook', express.json(), async (req, res) => {
     try {
