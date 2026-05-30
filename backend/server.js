@@ -178,6 +178,34 @@ try {
   app.use('/api/support', phase45.supportRouter);
   app.use('/api/notifications', phase45.notificationRouter);
 
+  // ── AI CONCIERGE (Real data, dynamic, multilingual) ──────
+  app.post('/api/v1/ai/chat', express.json(), async (req, res) => {
+    try {
+      const concierge = require('./services/aiConciergeService');
+      const { message, role, language } = req.body;
+
+      if (!message) return res.status(400).json({ success: false, message: 'Message required' });
+
+      // Extract user ID from auth if available
+      let userId = null;
+      try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (token) {
+          const jwt = require('jsonwebtoken');
+          const decoded = jwt.verify(token, config.jwt.secret);
+          userId = decoded.id;
+        }
+      } catch {}
+
+      const result = await concierge.handleMessage(message, { role, userId, language });
+
+      res.json({ success: true, ...result });
+    } catch (err) {
+      console.error('[AI Chat]', err.message);
+      res.status(500).json({ success: false, message: 'AI concierge error' });
+    }
+  });
+
   // ── TENANCY AGREEMENT (Optional Add-on) ──────────────────
   app.get('/api/v1/legal/tenancy/states', (req, res) => {
     const ta = require('./services/tenancyAgreementService');

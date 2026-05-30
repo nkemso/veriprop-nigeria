@@ -94,6 +94,7 @@ export default function VetProAdvisors() {
   const [messages, setMessages] = useState([{ type: 'ai', text: advisor.greeting, typing: true }])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [lang, setLang] = useState('english')
   const token = localStorage.getItem('accessToken')
 
   if (!token) { window.location.href = '/login'; return null }
@@ -105,17 +106,37 @@ export default function VetProAdvisors() {
     setInput('')
     setLoading(true)
 
-    // Simulate AI response (in production: call OpenAI/Groq API)
-    await new Promise(r => setTimeout(r, 1500))
-    const responses: Record<string, string> = {
-      'Analyze Epe corridor land value': 'Based on current VeriProp data, Epe-Ibeju corridor land is averaging ₦8-15M per plot (600sqm). With the Dangote Refinery and Lekki Free Trade Zone driving demand, I project 35-45% appreciation over the next 18 months. Best entry points: Abijo, Bogije, and Eleko junction areas.',
-      'ROI calculator for 20-unit block': 'For a 20-unit 2-bed apartment block in Lekki Phase 2: Land (600sqm) ≈ ₦120M, Construction @ ₦200K/sqm × 2000sqm = ₦400M, Infrastructure 15% = ₦60M. Total cost: ~₦580M. Off-plan sales @ ₦35M each = ₦700M revenue. ROI: 20.7% on a 24-month timeline.',
-      'Optimize my rental pricing': 'Based on comparable listings in your area on VeriProp: A 2-bed apartment in Lekki Phase 1 should command ₦3.8-4.5M/year. I recommend ₦4.2M annual, which is 8% above average but justified by your verified listing badge and modern finishes. For short-let: ₦45,000-65,000 per night.',
-      'Find 3-bed in Lekki ₦5M budget': 'Great news! I found 23 verified 3-bedroom properties matching your criteria. Top picks: (1) Chevron Drive apartment at ₦4.8M/yr — newly built, 24/7 security. (2) Lekki Phase 1 terrace at ₦4.5M/yr — gated estate, swimming pool. (3) Agungi 3-bed at ₦4.2M/yr — C of O available.',
+    try {
+      const token = localStorage.getItem('accessToken')
+      const res = await fetch(API + '/api/v1/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: 'Bearer ' + token }),
+        },
+        body: JSON.stringify({ message: text, role: activeAdvisor, language: lang }),
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        let response = data.response || 'I could not process that request. Please try again.'
+
+        // If properties were found, append them
+        if (data.properties && data.properties.length > 0) {
+          response += '\n\n📍 Properties found:\n' + data.properties.map((p: any, i: number) =>
+            `${i + 1}. ${p.title} — ₦${(p.price || 0).toLocaleString()} | ${p.bedrooms || '?'}bed | ${p.state}, ${p.lga}`
+          ).join('\n')
+        }
+
+        setMessages(m => [...m, { type: 'ai', text: response, typing: true }])
+      } else {
+        setMessages(m => [...m, { type: 'ai', text: 'Sorry, I encountered an error. Please try again.', typing: true }])
+      }
+    } catch {
+      setMessages(m => [...m, { type: 'ai', text: 'Connection error. Please check your internet and try again.', typing: true }])
     }
 
-    const aiText = responses[text] || `That's a great question about ${text}. Based on current VeriProp market data and AI analysis of 12,000+ verified listings across Nigeria, here's what I recommend: This query requires a deeper analysis. I'm processing live market data from Lagos, Abuja, Port Harcourt, and 33 other states to give you the most accurate insights. Would you like me to focus on a specific state or property type?`
-    setMessages(m => [...m, { type: 'ai', text: aiText, typing: true }])
     setLoading(false)
   }
 
@@ -170,6 +191,22 @@ export default function VetProAdvisors() {
             <button key={s} onClick={() => sendMessage(s)}
               style={{ background: '#161b22', border: `1px solid ${advisor.accent}40`, color: '#8b949e', padding: '0.4rem 0.875rem', borderRadius: '999px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
               {s}
+            </button>
+          ))}
+        </div>
+
+        {/* Language toggle */}
+        <div style={{ display: 'flex', gap: '0.375rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+          {[
+            { id: 'english', label: '🇬🇧 English' },
+            { id: 'pidgin', label: '🇳🇬 Pidgin' },
+            { id: 'yoruba', label: 'Yorùbá' },
+            { id: 'igbo', label: 'Igbo' },
+            { id: 'hausa', label: 'Hausa' },
+          ].map(l => (
+            <button key={l.id} onClick={() => setLang(l.id)}
+              style={{ background: lang === l.id ? advisor.accent + '30' : '#0d1117', color: lang === l.id ? advisor.accent : '#6e7681', border: '1px solid #21262d', padding: '0.2rem 0.5rem', borderRadius: '999px', fontSize: '0.65rem', cursor: 'pointer' }}>
+              {l.label}
             </button>
           ))}
         </div>
