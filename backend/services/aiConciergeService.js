@@ -97,7 +97,7 @@ async function callAI(prompt, systemPrompt, modelName) {
   }
 
   try {
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI_TIMEOUT')), 12000));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI_TIMEOUT')), 8000));
 
     const fetchPromise = (async () => {
       if (provider.format === 'gemini') {
@@ -137,6 +137,7 @@ async function callAI(prompt, systemPrompt, modelName) {
     if (text) return { text, model: modelName, tokens: 0 };
   } catch (err) {
     console.error(`[AI/${modelName}] Error:`, err.message);
+    // Fast fallback — don't retry same model
   }
 
   // Fallback to next provider
@@ -404,11 +405,11 @@ async function handleMessage(userMessage, options = {}) {
   // Master timeout — entire handler must complete in 25 seconds
   return Promise.race([
     _handleMessage(userMessage, { role, userId, language: forceLang }),
-    new Promise((resolve) => setTimeout(() => resolve({
+    new Promise((r) => setTimeout(() => r({
       response: generateLocalResponse(''),
       model: 'timeout_fallback',
       language: forceLang || 'english',
-    }), 25000)),
+    }), 15000)),
   ]);
 }
 
