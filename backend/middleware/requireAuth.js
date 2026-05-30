@@ -99,9 +99,9 @@ const requireRole = (...roles) => (req, res, next) => {
 };
 
 // Verification tier gate
-// Tier 1 = BVN, Tier 2 = Govt ID, Tier 3 = Notary
+// Tier 1 = NIN, Tier 2 = Document KYC (Didit), Tier 3 = Full Verified
 const requireTier = (minTier) => (req, res, next) => {
-  const tierOrder = ['NONE', 'TIER1_BVN', 'TIER2_GOVT_ID', 'TIER3_NOTARY'];
+  const tierOrder = ['NONE', 'TIER1_NIN', 'TIER2_DOCUMENT', 'TIER3_NOTARY'];
   const userTierIndex = tierOrder.indexOf(req.user?.verificationTier || 'NONE');
   const requiredIndex = tierOrder.indexOf(minTier);
 

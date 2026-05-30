@@ -4,17 +4,17 @@
  * ================================================================
  * VERIPROP NIGERIA — IDENTITY VERIFICATION SERVICE
  * ================================================================
- * Real BVN/NIN verification against NIBSS/NIMC government databases.
+ * Real NIN verification against NIBSS/NIMC government databases.
  * 
  * Supports multiple providers (swap with one env var):
  * 
  * Provider 1: NINBVNPortal (DEFAULT)
- *   - BVN: ₦100 | NIN: ₦150
+ *   - NIN: ₦150 (BVN function kept for provider compatibility)
  *   - Signup: ninbvnportal.com.ng (any email)
  *   - Env: NINBVN_API_KEY
  * 
  * Provider 2: Prembly/IdentityPass (CHEAPEST)
- *   - BVN: ₦20 | NIN: ₦80 | CAC: ₦20
+ *   - NIN: ₦80 | CAC: ₦20 (BVN function kept for provider compatibility)
  *   - Signup: myidentitypass.com (company email required)
  *   - Env: PREMBLY_API_KEY + PREMBLY_APP_ID
  * 
@@ -36,7 +36,7 @@ function getProvider() {
 // ================================================================
 // PROVIDER 1: NINBVNPortal
 // API: ninbvnportal.com.ng
-// BVN: ₦100 | NIN: ₦150
+// NIN: ₦150 (BVN functions retained but not called from routes)
 // ================================================================
 
 async function ninbvnportal_verifyBVN(bvn) {
@@ -139,7 +139,7 @@ async function ninbvnportal_verifyNIN(nin) {
 // ================================================================
 // PROVIDER 2: Prembly (IdentityPass)
 // API: api.myidentitypay.com
-// BVN Basic: ₦20 | NIN: ₦80 | CAC: ₦20
+// NIN: ₦80 | CAC: ₦20 (BVN functions retained but not called)
 // ================================================================
 
 async function prembly_verifyBVN(bvn) {
@@ -383,7 +383,7 @@ async function testConnection() {
         connected: res.ok,
         balance: data.data?.formatted_balance || data.data?.balance,
         message: res.ok
-          ? `✅ NINBVNPortal connected (Balance: ${data.data?.formatted_balance || '?'}) — BVN ₦100 / NIN ₦150`
+          ? `✅ NINBVNPortal connected (Balance: ${data.data?.formatted_balance || '?'}) — NIN ₦150`
           : '❌ NINBVNPortal connection failed',
       };
     } catch (err) {
@@ -397,7 +397,7 @@ async function testConnection() {
   if (process.env.PREMBLY_API_KEY) {
     results.prembly = {
       connected: true,
-      message: '✅ Prembly configured — BVN ₦20 / NIN ₦80 / CAC ₦20',
+      message: '✅ Prembly configured — NIN ₦80 / CAC ₦20',
     };
   } else {
     results.prembly = { connected: false, message: '⚠️ PREMBLY_API_KEY not set (cheapest option)' };
@@ -408,7 +408,6 @@ async function testConnection() {
 
 
 module.exports = {
-  verifyBVN,
   verifyNIN,
   verifyCAC,
   matchNames,

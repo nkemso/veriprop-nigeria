@@ -7,7 +7,7 @@
  * ZERO-TRUST using Didit FREE session-based KYC:
  *
  * NEW FLOW:
- *   1. User enters BVN (11 digits) — stored as SHA-256 hash,
+ *   1. User enters NIN (11 digits) — verified against NIMC database,
  *      checked for duplicates. NOT sent to any paid API.
  *
  *   2. User enters NIN (11 digits) — stored as SHA-256 hash,
@@ -22,7 +22,7 @@
  *
  *   4. Webhook fires → if Approved, user becomes TIER3_VERIFIED.
  *      The OCR-extracted document number is cross-checked against
- *      the BVN/NIN the user entered. If mismatch → flagged.
+ *      the NIN the user entered. If mismatch → flagged.
  *
  * WHY THIS IS STRONGER:
  *   - Proves user PHYSICALLY POSSESSES their real ID document
@@ -257,7 +257,7 @@ userRouter.get('/me', authenticateToken, async (req, res) => {
         id: true, email: true, firstName: true, lastName: true,
         phone: true, role: true, isVerified: true, isActive: true,
         verificationTier: true, fraudScore: true,
-        bvnVerified: true, ninVerified: true, phoneVerified: true,
+        ninVerified: true, phoneVerified: true,
         notaryVerified: true,
         createdAt: true, lastLoginAt: true,
       },
@@ -322,166 +322,8 @@ userRouter.put('/me', authenticateToken, [
 // VERIFICATION ROUTES — FREE SESSION-BASED KYC
 // ============================================
 
-// ─── STEP 1: REGISTER BVN ───────────────────────────────────
-// User enters their BVN (11 digits).
-// We store a SHA-256 hash and check for duplicates.
-// The BVN will be cross-verified when Didit OCRs their ID card.
-// NO paid API call — just format validation + duplicate check.
-// ──────────────────────────────────────────────────────────────
-verifyRouter.post('/bvn', authenticateToken, [
-  body('bvn').isLength({ min: 11, max: 11 }).isNumeric().matches(/^22\d{9}$/)
-    .withMessage('BVN must be exactly 11 digits and start with 22'),
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: '❌ Invalid BVN. Must be exactly 11 digits starting with 22.',
-        errors: errors.array(),
-      });
-    }
-
-    const { bvn } = req.body;
-    const userId = req.user.id;
-
-    // ── STRUCTURAL VALIDATION ──
-    // Real Nigerian BVNs: 11 digits, always start with "22"
-    if (!/^22\d{9}$/.test(bvn)) {
-      return res.status(400).json({
-        success: false,
-        message: '❌ Invalid BVN. Nigerian BVNs are 11 digits starting with 22.',
-      });
-    }
-
-    // Reject fake patterns: repeated digits, sequential, common test numbers
-    const bvnDigits = bvn.split('').map(Number);
-    const uniqueDigits = new Set(bvnDigits).size;
-    const isSequential = bvnDigits.every((d, i) => i === 0 || d === (bvnDigits[i-1] + 1) % 10);
-    const isReverse = bvnDigits.every((d, i) => i === 0 || d === (bvnDigits[i-1] - 1 + 10) % 10);
-    const knownFakes = ['22222222222', '22000000000', '22123456789', '22111111111', '22100000000', '22012345678', '22987654321'];
-
-    if (uniqueDigits <= 3 || isSequential || isReverse || knownFakes.includes(bvn)) {
-      return res.status(400).json({
-        success: false,
-        message: '❌ This does not appear to be a valid BVN. Please enter your real Bank Verification Number as issued by your bank.',
-      });
-    }
-
-    // Entropy check — real BVNs have reasonable digit distribution
-    const digitFreq = {};
-    for (const d of bvnDigits) digitFreq[d] = (digitFreq[d] || 0) + 1;
-    const maxFreq = Math.max(...Object.values(digitFreq));
-    if (maxFreq >= 7) {
-      // 7+ of the same digit in 11 = almost certainly fake
-      return res.status(400).json({
-        success: false,
-        message: '❌ Invalid BVN pattern. Please enter the real BVN from your bank.',
-      });
-    }
-
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { bvnVerified: true, bvnHash: true },
-    });
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    // Already verified with same BVN
-    if (user.bvnVerified && user.bvnHash) {
-      const submittedHash = hashSensitiveId(bvn);
-      if (user.bvnHash === submittedHash) {
-        return res.json({
-          success: true,
-          message: '✅ BVN already registered.',
-          verificationTier: 'TIER1_BVN',
-          tier: 1,
-        });
-      }
-      return res.status(403).json({
-        success: false,
-        message: '❌ A different BVN is already on this account. Contact support.',
-      });
-    }
-
-    // Check duplicate — one person, one account
-    const bvnHash = hashSensitiveId(bvn);
-    const existingBvn = await db.user.findFirst({
-      where: { bvnHash, id: { not: userId } },
-      select: { id: true },
-    });
-
-    if (existingBvn) {
-      console.warn(`[BVN] Duplicate BVN attempt by user ${userId}`);
-      return res.status(409).json({
-        success: false,
-        message: '❌ This BVN is already registered to another account. Each person can only have one VeriProp account.',
-      });
-    }
-
-    // ── REAL VERIFICATION against NIBSS ──
-    const bvnUser = await db.user.findUnique({
-      where: { id: userId },
-      select: { firstName: true, lastName: true },
-    });
-
-    const bvnResult = await identityService.verifyBVN(bvn);
-
-    if (!bvnResult.verified) {
-      console.warn(`[BVN] ❌ NIBSS verification FAILED for user ${userId}: ${bvnResult.message}`);
-      return res.json({
-        success: false,
-        message: bvnResult.message || '❌ BVN not found in NIBSS database. Please enter your correct BVN.',
-        provider: bvnResult.provider,
-        verificationTier: 'NONE',
-        tier: 0,
-      });
-    }
-
-    // Cross-reference name from NIBSS with registered name
-    const nameMatch = identityService.matchNames(bvnResult.data, bvnUser.firstName, bvnUser.lastName);
-    if (!nameMatch.match) {
-      console.warn(`[BVN] ❌ Name mismatch for user ${userId}: API="${bvnResult.data?.firstName} ${bvnResult.data?.lastName}" vs User="${bvnUser.firstName} ${bvnUser.lastName}"`);
-      return res.json({
-        success: false,
-        message: '❌ The name on this BVN does not match your registered name. Please ensure you registered with your real name.',
-        provider: bvnResult.provider,
-        verificationTier: 'NONE',
-        tier: 0,
-      });
-    }
-
-    // ✅ VERIFIED — store hash and update tier
-    await db.user.update({
-      where: { id: userId },
-      data: {
-        bvnVerified: true,
-        bvnHash,
-        verificationTier: 'TIER1_BVN',
-      },
-    });
-
-    console.log(`[BVN] ✅ BVN verified for user ${userId} via ${bvnResult.provider} (name match: ${nameMatch.score}%)`);
-
-    return res.json({
-      success: true,
-      message: '✅ BVN verified against NIBSS government database!',
-      verificationTier: 'TIER1_BVN',
-      tier: 1,
-      provider: bvnResult.provider,
-      nameMatch: nameMatch.score,
-    });
-  } catch (error) {
-    console.error('[BVN] Error:', error.message);
-    return res.status(500).json({ success: false, message: 'BVN registration error.' });
-  }
-});
-
-
-// ─── STEP 2: REGISTER NIN ───────────────────────────────────
-// Same as BVN — format validation + duplicate check, no paid API.
+// ─── STEP 1: VERIFY NIN ───────────────────────────────────
+// Verify NIN against NIMC government database via NINBVNPortal/Prembly.
 // ──────────────────────────────────────────────────────────────
 verifyRouter.post('/nin', authenticateToken, [
   body('nin').isLength({ min: 11, max: 11 }).isNumeric()
@@ -536,19 +378,14 @@ verifyRouter.post('/nin', authenticateToken, [
 
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { ninVerified: true, ninHash: true, bvnVerified: true },
+      select: { ninVerified: true, ninHash: true },
     });
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    if (!user.bvnVerified) {
-      return res.status(400).json({
-        success: false,
-        message: '❌ Please register your BVN (Step 1) before NIN.',
-      });
-    }
+
 
     if (user.ninVerified && user.ninHash) {
       const submittedHash = hashSensitiveId(nin);
@@ -594,7 +431,7 @@ verifyRouter.post('/nin', authenticateToken, [
         success: false,
         message: ninResult.message || '❌ NIN not found in NIMC database. Please enter your correct NIN.',
         provider: ninResult.provider,
-        verificationTier: 'TIER1_BVN',
+        verificationTier: 'TIER1_NIN',
         tier: 1,
       });
     }
@@ -607,7 +444,7 @@ verifyRouter.post('/nin', authenticateToken, [
         success: false,
         message: '❌ The name on this NIN does not match your registered name.',
         provider: ninResult.provider,
-        verificationTier: 'TIER1_BVN',
+        verificationTier: 'TIER1_NIN',
         tier: 1,
       });
     }
@@ -618,8 +455,7 @@ verifyRouter.post('/nin', authenticateToken, [
       data: {
         ninVerified: true,
         ninHash,
-        verificationTier: 'TIER2_GOVT_ID',
-        isVerified: true,
+        verificationTier: 'TIER1_NIN',
       },
     });
 
@@ -653,20 +489,20 @@ verifyRouter.post('/kyc-session', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Check that user has at least registered BVN + NIN
+    // Check that user has verified NIN
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { bvnVerified: true, ninVerified: true, notaryVerified: true, verificationTier: true },
+      select: { ninVerified: true, notaryVerified: true, verificationTier: true },
     });
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    if (!user.bvnVerified || !user.ninVerified) {
+    if (!user.ninVerified) {
       return res.status(400).json({
         success: false,
-        message: '❌ Please register your BVN and NIN before starting document verification.',
+        message: '❌ Please verify your NIN before starting document verification.',
       });
     }
 
@@ -833,7 +669,7 @@ verifyRouter.get('/status', authenticateToken, async (req, res) => {
       where: { id: req.user.id },
       select: {
         verificationTier: true, isVerified: true,
-        bvnVerified: true, ninVerified: true,
+        ninVerified: true,
         notaryVerified: true, phoneVerified: true,
       },
     });
@@ -849,11 +685,11 @@ verifyRouter.get('/status', authenticateToken, async (req, res) => {
       verification: {
         tier: user.verificationTier,
         isVerified: user.isVerified,
-        bvn: user.bvnVerified,
+        
         nin: user.ninVerified,
         document: user.notaryVerified,
         phone: user.phoneVerified,
-        nextStep: !user.bvnVerified ? 'Register BVN'
+        nextStep: !user.ninVerified ? 'Verify NIN'
           : !user.ninVerified ? 'Register NIN'
           : !user.notaryVerified ? 'Complete Document Verification (scan ID + selfie)'
           : 'Fully Verified ✅',

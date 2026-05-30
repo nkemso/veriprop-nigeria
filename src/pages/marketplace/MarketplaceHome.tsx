@@ -146,7 +146,7 @@ export default function MarketplaceHome() {
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
             {[
-              ['1️⃣', 'Verify Identity', 'Complete BVN + Govt ID verification'],
+              ['1️⃣', 'Verify Identity', 'Complete NIN + Document verification'],
               ['2️⃣', 'Find Property', 'Browse AI-verified listings nationwide'],
               ['3️⃣', 'Secure Escrow', 'Funds held safely until all parties sign'],
               ['4️⃣', 'Multi-Sig Release', 'Buyer + Seller approve → funds split automatically'],

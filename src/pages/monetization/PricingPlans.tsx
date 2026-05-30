@@ -27,7 +27,7 @@ const PLANS = [
     features: [
       '✅ Browse verified listings',
       '✅ 1 property listing',
-      '✅ Basic BVN/NIN verification',
+      '✅ Basic NIN verification',
       '✅ Standard chat support',
       '✅ Escrow transactions',
       '❌ Featured placement',

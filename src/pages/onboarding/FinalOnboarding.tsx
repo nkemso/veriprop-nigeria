@@ -81,7 +81,7 @@ const VETPRO_DIALOGUE = [
     icon: '🔍',
     title: 'I Verify Every Identity.',
     lines: [
-      "Tier 1: BVN verification — your bank confirms you.",
+      "Tier 1: NIN verification — your bank confirms you.",
       "Tier 2: Government ID — NIN, Passport, or Driver's License.",
       "Tier 3: Selfie Liveness — powered by Didit AI (sub-2 seconds).",
       "No anonymous users. No fake listings. Period.",

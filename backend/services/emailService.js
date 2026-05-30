@@ -101,7 +101,7 @@ async function sendWelcomeEmail(user) {
       <p style="color:#475569;line-height:1.7">Your VeriProp Nigeria account has been created. You're one step closer to Nigeria's most trusted property marketplace.</p>
       <p style="color:#475569;line-height:1.7"><strong>Next steps:</strong></p>
       <ol style="color:#475569;line-height:2">
-        <li>Complete your identity verification (BVN + NIN + Document Scan)</li>
+        <li>Complete your identity verification (NIN + Document Verification)</li>
         <li>Browse verified property listings</li>
         <li>Start making secure transactions</li>
       </ol>

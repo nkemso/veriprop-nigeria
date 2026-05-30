@@ -435,11 +435,11 @@ export default function AdminDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '1rem' }}>
                   {[
                     { title: 'NDPR 2019', status: 'Compliant', icon: '🇳🇬', color: '#10b981', desc: 'Nigeria Data Protection Regulation — data collection, consent, and rights handled per regulation.' },
-                    { title: 'CBN KYC', status: 'Active', icon: '🏦', color: '#3b82f6', desc: 'Central Bank of Nigeria KYC requirements — BVN and NIN verification integrated.' },
+                    { title: 'CBN KYC', status: 'Active', icon: '🏦', color: '#3b82f6', desc: 'Central Bank of Nigeria KYC requirements — NIN verification integrated.' },
                     { title: 'EFCC AML', status: 'Monitoring', icon: '🔍', color: '#8b5cf6', desc: 'Anti-Money Laundering — fraud scoring, suspicious activity flagging and reporting.' },
                     { title: 'FIRS Tax', status: 'Remitting', icon: '📊', color: '#f59e0b', desc: 'Federal Inland Revenue Service — VAT (7.5%) and WHT auto-remitted per transaction.' },
                     { title: 'CAC Verification', status: 'Active', icon: '🏢', color: '#06b6d4', desc: 'Corporate Affairs Commission — agency and developer company verification.' },
-                    { title: 'NIBSS Integration', status: 'Live', icon: '🔗', color: '#10b981', desc: 'Nigeria Inter-Bank Settlement System — BVN verification for Tier 1 KYC.' },
+                    { title: 'NIBSS Integration', status: 'Live', icon: '🔗', color: '#10b981', desc: 'Nigeria Inter-Bank Settlement System — NIN verification for Tier 1 KYC.' },
                   ].map(c => (
                     <div key={c.title} style={{ background: '#161b22', border: `1px solid ${c.color}30`, borderRadius: '0.875rem', padding: '1.5rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>

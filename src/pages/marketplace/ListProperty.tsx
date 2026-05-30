@@ -30,7 +30,7 @@ export default function ListProperty() {
         <div style={{ fontSize:'3rem' }}>🛡️</div>
         <h2 style={{ color:'#92400e', fontWeight:800 }}>Identity Verification Required</h2>
         <p style={{ color:'#78350f', textAlign:'center', maxWidth:400, lineHeight:1.7 }}>
-          To list properties on VeriProp, you must complete full identity verification (BVN + NIN + Document Scan).
+          To list properties on VeriProp, you must complete full identity verification (NIN + Document Scan).
           This protects buyers from fraud and ensures trust on the platform.
         </p>
         <a href="/verify" style={{ background:'#d97706', color:'#fff', padding:'0.75rem 1.5rem', borderRadius:'0.75rem', fontWeight:700, textDecoration:'none', fontSize:'1rem' }}>🛡️ Complete Verification →</a>

@@ -145,7 +145,7 @@ const config = {
   // 500 FREE verifications/month forever
   //
   // Services used:
-  //   - Database Validation: BVN ($0.80/call) + NIN ($0.08/call)
+  //   - Database Validation: NIN verification
   //   - Session KYC: ID + Liveness + Face Match + IP (500 free/month, then $0.33)
   //   - Passive Liveness: standalone ($0.05/call)
   //
@@ -219,7 +219,7 @@ if (config.app.isProduction) {
     console.error('');
     console.error('══════════════════════════════════════════════════════════');
     console.error('⛔  DIDIT_API_KEY IS NOT SET — ALL VERIFICATION IS DISABLED');
-    console.error('   BVN, NIN, and biometric checks will FAIL for all users.');
+    console.error('   NIN and biometric checks will FAIL for all users.');
     console.error('   Get your FREE key at: https://business.didit.me');
     console.error('══════════════════════════════════════════════════════════');
     console.error('');

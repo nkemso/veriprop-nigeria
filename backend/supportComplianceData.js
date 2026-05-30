@@ -13,8 +13,8 @@ const SUPPORT_CATEGORIES = [
 ];
 
 const COMPLIANCE_REQUIREMENTS = {
-  individual: ['nin', 'bvn', 'phone', 'photo_id'],
-  agent: ['nin', 'bvn', 'phone', 'photo_id', 'real_estate_license'],
+  individual: ['nin', 'phone', 'photo_id'],
+  agent: ['nin', 'phone', 'photo_id', 'real_estate_license'],
   agency: ['cac_registration', 'tin', 'address_proof', 'director_nin'],
   developer: ['cac_registration', 'tin', 'address_proof', 'director_nin'],
 };

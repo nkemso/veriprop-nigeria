@@ -4,9 +4,9 @@ const API = import.meta.env.VITE_API_URL || 'https://veriprop-nigeria-production
 
 const TIERS = [
   {
-    tier: 'TIER1_BVN',
-    label: 'Step 1 — Register BVN',
-    desc: 'Enter your Bank Verification Number to link your identity.',
+    tier: 'TIER1_NIN',
+    label: 'Step 1 — Verify NIN',
+    desc: 'Enter your National Identity Number to link your identity.',
     icon: '🏦',
     required: true,
   },
@@ -27,12 +27,8 @@ const TIERS = [
 ]
 
 export default function VerificationHub() {
-  const [openTier, setOpenTier] = useState<string | null>('TIER1_BVN')
+  const [openTier, setOpenTier] = useState<string | null>('TIER1_NIN')
 
-  // BVN state
-  const [bvn, setBvn] = useState('')
-  const [bvnLoading, setBvnLoading] = useState(false)
-  const [bvnMsg, setBvnMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   // NIN state
   const [idNumber, setIdNumber] = useState('')
@@ -44,35 +40,6 @@ export default function VerificationHub() {
   const [kycMsg, setKycMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const token = localStorage.getItem('accessToken')
-
-  const submitBVN = async () => {
-    if (bvn.length !== 11) return
-    if (!token) { setBvnMsg({ ok: false, text: 'Please log in first.' }); return }
-    setBvnLoading(true)
-    setBvnMsg(null)
-    try {
-      const res = await fetch(`${API}/api/v1/verify/bvn`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ bvn }),
-      })
-      if (!res.ok && res.status === 401) {
-        setBvnMsg({ ok: false, text: 'Session expired. Please log in again.' })
-        setBvnLoading(false)
-        return
-      }
-      const data = await res.json()
-      setBvnMsg({ ok: data.success, text: data.message || (data.success ? 'BVN registered!' : 'Registration failed') })
-      if (data.success) {
-        const u = JSON.parse(localStorage.getItem('user') || '{}')
-        localStorage.setItem('user', JSON.stringify({ ...u, bvnVerified: true, verificationTier: data.verificationTier || 'TIER1_BVN', ...(data.user || {}) }))
-        window.dispatchEvent(new Event('userUpdated'))
-      }
-    } catch {
-      setBvnMsg({ ok: false, text: 'Network error. Check your connection.' })
-    }
-    setBvnLoading(false)
-  }
 
   const submitNIN = async () => {
     if (idNumber.length !== 11) return
@@ -181,7 +148,7 @@ export default function VerificationHub() {
             <div>
               <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: '0.9rem', marginBottom: '0.25rem' }}>How verification works</div>
               <div style={{ color: '#475569', fontSize: '0.8rem', lineHeight: 1.6 }}>
-                <strong>Steps 1-2:</strong> Register your BVN and NIN (duplicate detection prevents multiple accounts).<br/>
+                <strong>Steps 1-2:</strong> Verify your NIN (duplicate detection prevents multiple accounts).<br/>
                 <strong>Step 3:</strong> Scan your actual ID document + take a selfie. Didit AI verifies your document is real, your face matches, and you're a live person. <strong>100% free</strong> — 500 verifications/month.
               </div>
             </div>
@@ -239,7 +206,7 @@ export default function VerificationHub() {
                 >
 
                   {/* ── STEP 1: BVN ── */}
-                  {tier.tier === 'TIER1_BVN' && (
+                  {tier.tier === 'TIER1_NIN' && (
                     <div style={{ paddingTop: '1.25rem' }}>
                       {bvnMsg && (
                         <div style={{ background: bvnMsg.ok ? '#dcfce7' : '#fee2e2', color: bvnMsg.ok ? '#166534' : '#991b1b', padding: '0.75rem 1rem', borderRadius: '0.5rem', marginBottom: '1rem', fontWeight: 600, fontSize: '0.875rem' }}>

@@ -17,7 +17,7 @@ VeriPro Nigeria is a property marketplace for Nigerian real estate transactions.
 All users must be 18+ and Nigerian residents or citizens.
 
 ## 3. Verification
-Users must complete identity verification (NIN/BVN) before transacting.
+Users must complete identity verification (NIN) before transacting.
 VeriPro Nigeria reserves the right to reject unverified listings.
 
 ## 4. Fees
@@ -44,7 +44,7 @@ Fraudulent activity will result in immediate account termination and legal actio
 # Privacy Policy
 
 ## 1. Data Collection
-We collect: name, email, phone, NIN, BVN, property data, transaction history.
+We collect: name, email, phone, NIN, property data, transaction history.
 
 ## 2. Data Use
 Your data is used to: verify identity, process transactions, prevent fraud.

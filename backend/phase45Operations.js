@@ -240,7 +240,7 @@ adminRouter.get('/team', async (req, res) => {
 adminRouter.patch('/users/:id/verify', requireRole(ROLES.ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   try {
     const { tier } = req.body;
-    const validTiers = ['TIER1_BVN', 'TIER2_GOVT_ID', 'TIER3_NOTARY'];
+    const validTiers = ['TIER1_NIN', 'TIER2_DOCUMENT', 'TIER3_NOTARY'];
 
     if (!validTiers.includes(tier)) {
       return res.status(400).json({
@@ -254,10 +254,9 @@ adminRouter.patch('/users/:id/verify', requireRole(ROLES.ADMIN, ROLES.SUPER_ADMI
       isVerified: true,
     };
 
-    if (tier === 'TIER1_BVN') data.bvnVerified = true;
-    if (tier === 'TIER2_GOVT_ID') { data.bvnVerified = true; data.ninVerified = true; }
+    if (tier === 'TIER1_NIN') data.ninVerified = true;
+    if (tier === 'TIER2_DOCUMENT') { data.ninVerified = true; }
     if (tier === 'TIER3_NOTARY') {
-      data.bvnVerified = true;
       data.ninVerified = true;
       data.notaryVerified = true;
       data.notaryVerifiedAt = new Date();

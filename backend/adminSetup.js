@@ -76,7 +76,6 @@ setupRouter.post('/setup', async (req, res) => {
           isVerified: true,
           verificationTier: 'TIER3_NOTARY',
           notaryVerified: true,
-          bvnVerified: true,
           ninVerified: true,
         },
         select: {
@@ -127,7 +126,6 @@ setupRouter.post('/setup', async (req, res) => {
         isVerified: true,
         verificationTier: 'TIER3_NOTARY',
         notaryVerified: true,
-        bvnVerified: true,
         ninVerified: true,
         profile: {
           create: {

@@ -24,8 +24,7 @@ export interface User {
   isVerified: boolean;
   isActive: boolean;
   ninVerified?: boolean;
-  bvnVerified?: boolean;
-  phoneVerified?: boolean;
+    phoneVerified?: boolean;
   verificationLevel?: number;
   profile?: UserProfile;
   createdAt: string;
