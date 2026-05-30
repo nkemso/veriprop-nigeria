@@ -53,7 +53,7 @@ export default function MultiSigVisualization() {
   return (
     <div style={{ minHeight:'100vh', background:'#f8fafc', fontFamily:'Inter,sans-serif' }}>
       <nav style={{ background:'#1e3a5f', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <a href="/" style={{ color:'#fff', fontWeight:800, textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Nigeria</span></a>
+        <a href="/" style={{ color:'#fff', fontWeight:800, textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Naija</span></a>
         <span style={{ color: quorumMet ? '#10b981':'#f59e0b', fontSize:'0.8rem', fontWeight:600 }}>
           {quorumMet ? '✅ Quorum Achieved' : `${signed.length}/2 Signatures`}
         </span>

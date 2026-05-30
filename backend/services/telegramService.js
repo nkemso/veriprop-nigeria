@@ -84,7 +84,7 @@ async function notifyVerificationComplete(chatId, firstName) {
     `✅ <b>Identity Verified!</b>`,
     ``,
     `Congratulations ${firstName}! Your identity has been verified.`,
-    `You are now <b>Tier 3 Verified</b> on VeriProp Nigeria.`,
+    `You are now <b>Tier 3 Verified</b> on VeriProp Naija Properties.`,
     ``,
     `You can now:`,
     `• List properties on the marketplace`,
@@ -256,7 +256,7 @@ async function postMarketUpdate(title, message) {
     ``,
     message,
     ``,
-    `🏠 <a href="https://veriprop-nigeriang.vercel.app">VeriProp Nigeria</a>`,
+    `🏠 <a href="https://veriprop-nigeriang.vercel.app">VeriProp Naija Properties</a>`,
   ].join('\n'));
 }
 
@@ -295,7 +295,7 @@ async function handleBotUpdate(update) {
     if (linkParam) {
       // User came from app with a link code — link their account
       return sendMessage(chatId, [
-        `🏠 <b>Welcome to VeriProp Nigeria, ${firstName}!</b>`,
+        `🏠 <b>Welcome to VeriProp Naija Properties, ${firstName}!</b>`,
         ``,
         `Linking your Telegram account...`,
         `Your link code: <code>${linkParam}</code>`,
@@ -312,7 +312,7 @@ async function handleBotUpdate(update) {
     }
 
     return sendMessage(chatId, [
-      `🏠 <b>Welcome to VeriProp Nigeria!</b>`,
+      `🏠 <b>Welcome to VeriProp Naija Properties!</b>`,
       ``,
       `Nigeria's Most Trusted Property Marketplace.`,
       ``,
@@ -371,7 +371,7 @@ async function handleBotUpdate(update) {
   // /help
   if (text === '/help') {
     return sendMessage(chatId, [
-      `❓ <b>VeriProp Nigeria Help</b>`,
+      `❓ <b>VeriProp Naija Properties Help</b>`,
       ``,
       `<b>Commands:</b>`,
       `/start — Welcome message`,
@@ -382,7 +382,7 @@ async function handleBotUpdate(update) {
       `<b>Need support?</b>`,
       `Visit: <a href="https://veriprop-nigeriang.vercel.app/support">Support Center</a>`,
       ``,
-      `🏠 VeriProp Nigeria — Zero-Trust Property Marketplace`,
+      `🏠 VeriProp Naija Properties — Zero-Trust Property Marketplace`,
     ].join('\n'));
   }
 

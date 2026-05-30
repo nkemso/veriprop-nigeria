@@ -25,7 +25,7 @@ export default function InvestorDashboard() {
   return (
     <div style={{ minHeight:'100vh', background:'#0d1117', fontFamily:'Inter,sans-serif' }}>
       <nav style={{ background:'#161b22', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #21262d' }}>
-        <a href="/" style={{ color:'#fff', fontWeight:800, textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Nigeria</span></a>
+        <a href="/" style={{ color:'#fff', fontWeight:800, textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Naija</span></a>
         <div style={{ display:'flex', gap:'1rem', alignItems:'center' }}>
           <span style={{ color:'#f59e0b', fontSize:'0.75rem', fontWeight:700 }}>💰 INVESTOR PORTAL</span>
           <button onClick={logout} style={{ background:'transparent', border:'1px solid #30363d', color:'#8b949e', padding:'0.35rem 0.75rem', borderRadius:'0.5rem', cursor:'pointer', fontSize:'0.8rem' }}>Logout</button>

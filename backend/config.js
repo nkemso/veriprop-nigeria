@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const config = {
   app: {
-    name: process.env.APP_NAME || 'VeriProp Nigeria',
+    name: process.env.APP_NAME || 'VeriProp Naija Properties',
     url: process.env.APP_URL || 'https://veripronigeria.com',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
     port: parseInt(process.env.PORT) || 5000,
@@ -39,7 +39,7 @@ const config = {
     port: parseInt(process.env.SMTP_PORT) || 587,
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
-    from: process.env.EMAIL_FROM || 'VeriProp Nigeria <noreply@veripronigeria.com>',
+    from: process.env.EMAIL_FROM || 'VeriProp Naija Properties <noreply@veripropnigeria.com>',
   },
 
   sms: {

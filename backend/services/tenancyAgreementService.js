@@ -458,7 +458,7 @@ Date: ___________________________
 
 
 ═══════════════════════════════════════════════════════════════
-Generated via VeriProp Nigeria — Nigeria's Zero-Trust Property Marketplace
+Generated via VeriProp Naija Properties (RC-9580468) — Nigeria's Zero-Trust Property Marketplace
 https://veriprop-nigeriang.vercel.app
 ═══════════════════════════════════════════════════════════════
 `;

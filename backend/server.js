@@ -51,7 +51,7 @@ app.use(morgan('combined'));
 app.use((req, res, next) => {
   req.requestId = `VP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   res.setHeader('X-Request-ID', req.requestId);
-  res.setHeader('X-Powered-By', 'VeriProp Nigeria');
+  res.setHeader('X-Powered-By', 'VeriProp Naija Properties');
   next();
 });
 

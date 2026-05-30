@@ -27,7 +27,7 @@ const TEASERS = [
     headline: 'Secure Your Family\u2019s\nForever Home',
     sub: 'Multi-Sig escrow ensures your funds are untouchable until you\u2019re satisfied.',
     badge: '📍 Maitama, Abuja FCT',
-    stats: [{ v: '3-Tier', l: 'KYC Verification' }, { v: '2-of-3', l: 'Multi-Sig Release' }],
+    stats: [{ v: '2-Step', l: 'KYC Verification' }, { v: '2-of-3', l: 'Multi-Sig Release' }],
     accent: '#10b981',
     images: [
       'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&q=80',
@@ -42,7 +42,7 @@ const TEASERS = [
     headline: 'Grow Your Business\nin Prime Locations',
     sub: 'AI-verified listings. Transparent pricing. Institutional-grade transactions.',
     badge: '📍 Lekki, Lagos Island',
-    stats: [{ v: '5%', l: 'Platform Fee Only' }, { v: '24hrs', l: 'Fund Release' }],
+    stats: [{ v: '2.5%', l: 'Platform Fee' }, { v: '24hrs', l: 'Fund Release' }],
     accent: '#3b82f6',
     images: [
       'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=800&q=80',

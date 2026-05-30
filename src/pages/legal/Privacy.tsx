@@ -2,7 +2,7 @@ import React from 'react'
 
 const NAV = () => (
   <nav style={{ background:'#1e3a5f', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-    <a href="/" style={{ color:'#fff', fontWeight:800, fontSize:'1.1rem', textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Nigeria</span></a>
+    <a href="/" style={{ color:'#fff', fontWeight:800, fontSize:'1.1rem', textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Naija</span></a>
     <a href="/" style={{ color:'#94a3b8', textDecoration:'none', fontSize:'0.875rem' }}>← Back to Home</a>
   </nav>
 )

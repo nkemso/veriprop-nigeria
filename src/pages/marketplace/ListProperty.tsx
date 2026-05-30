@@ -73,7 +73,7 @@ export default function ListProperty() {
   return (
     <div style={{ minHeight:'100vh', background:'#f8fafc', fontFamily:'Inter,sans-serif' }}>
       <nav style={{ background:'#1e3a5f', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <a href="/" style={{ color:'#fff', fontWeight:800, fontSize:'1.1rem', textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Nigeria</span></a>
+        <a href="/" style={{ color:'#fff', fontWeight:800, fontSize:'1.1rem', textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Naija</span></a>
         <a href="/dashboard" style={{ color:'#94a3b8', textDecoration:'none', fontSize:'0.875rem' }}>← Dashboard</a>
       </nav>
       <div style={{ maxWidth:700, margin:'0 auto', padding:'1.5rem' }}>

@@ -3,11 +3,11 @@ import React, { useState } from 'react'
 const API = import.meta.env.VITE_API_URL || 'https://veriprop-nigeria-production.up.railway.app'
 
 const ROLES = [
-  { value:'buyer', label:'Buyer - Looking to buy/rent' },
-  { value:'seller', label:'Seller - Want to sell property' },
-  { value:'agent', label:'Agent - Real estate agent' },
-  { value:'landlord', label:'Landlord - Property owner' },
-  { value:'developer', label:'Developer - Property developer' },
+  { value:'buyer', label:'Property Seeker — Buy or Rent' },
+  { value:'seller', label:'Property Owner — Sell your property' },
+  { value:'agent', label:'Estate Agent — List & manage properties' },
+  { value:'landlord', label:'Landlord — Rent out your property' },
+  { value:'developer', label:'Developer — Build & sell developments' },
 ]
 
 export default function Register() {
@@ -99,7 +99,14 @@ export default function Register() {
             {loading ? 'Creating account...' : 'Create Account →'}
           </button>
         </form>
-        <div style={{ textAlign:'center', marginTop:'1.5rem', fontSize:'0.875rem', color:'#64748b' }}>
+        <div style={{ textAlign:'center', margin:'1.25rem 0 0.75rem', color:'#94a3b8', fontSize:'0.8rem' }}>— or —</div>
+
+        <a href="https://t.me/VeriPropNigeriaBot?start=register"
+          style={{ display:'block', width:'100%', padding:'0.75rem', background:'#0088cc', color:'#fff', border:'none', borderRadius:'0.75rem', fontWeight:700, fontSize:'0.9rem', textDecoration:'none', textAlign:'center', boxSizing:'border-box' }}>
+          ✈️ Register via Telegram
+        </a>
+
+        <div style={{ textAlign:'center', marginTop:'1.25rem', fontSize:'0.875rem', color:'#64748b' }}>
           Already have an account?{' '}
           <a href="/login" style={{ color:'#1d4ed8', fontWeight:700, textDecoration:'none' }}>Sign In →</a>
         </div>

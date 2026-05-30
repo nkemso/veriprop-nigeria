@@ -32,7 +32,7 @@ export default function AgentDashboard() {
   return (
     <div style={{ minHeight:'100vh', background:'#f8fafc', fontFamily:'Inter,sans-serif' }}>
       <nav style={{ background:'#1e3a5f', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <a href="/" style={{ color:'#fff', fontWeight:800, textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Nigeria</span></a>
+        <a href="/" style={{ color:'#fff', fontWeight:800, textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Naija</span></a>
         <div style={{ display:'flex', gap:'1rem', alignItems:'center' }}>
           <span style={{ color:'#10b981', fontSize:'0.75rem', fontWeight:700 }}>🤝 AGENT PORTAL</span>
           <button onClick={logout} style={{ background:'transparent', border:'1px solid #475569', color:'#94a3b8', padding:'0.35rem 0.75rem', borderRadius:'0.5rem', cursor:'pointer', fontSize:'0.8rem' }}>Logout</button>

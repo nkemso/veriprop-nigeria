@@ -1,4 +1,4 @@
-# 🏠 VeriProp Nigeria
+# 🏠 VeriProp Naija Properties
 
 **Nigeria's Most Trusted Property Marketplace**
 
@@ -74,3 +74,4 @@ AI_PROVIDER = local     # Regex only, zero cost
 ---
 
 Built with ❤️ for Nigeria 🇳🇬
+RC-9580468 | CAC Registered

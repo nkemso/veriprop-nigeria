@@ -44,7 +44,7 @@ export default function Dashboard() {
   return (
     <div style={{ minHeight:'100vh', background:'#f8fafc', fontFamily:'Inter,sans-serif' }}>
       <nav style={{ background:'#1e3a5f', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <a href="/" style={{ color:'#fff', fontWeight:800, fontSize:'1.1rem', textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Nigeria</span></a>
+        <a href="/" style={{ color:'#fff', fontWeight:800, fontSize:'1.1rem', textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Naija</span></a>
         <div style={{ display:'flex', gap:'1rem', alignItems:'center' }}>
           <a href="/list-property" style={{ color:'#94a3b8', fontSize:'0.875rem', textDecoration:'none' }}>+ List</a>
           <button onClick={logout} style={{ background:'transparent', border:'1px solid #475569', color:'#94a3b8', padding:'0.4rem 0.875rem', borderRadius:'0.5rem', cursor:'pointer', fontSize:'0.875rem' }}>Logout</button>

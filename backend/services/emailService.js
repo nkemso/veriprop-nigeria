@@ -16,7 +16,7 @@
 const config = require('../config');
 
 const RESEND_BASE = 'https://api.resend.com';
-const FROM_EMAIL = config.email?.from || 'VeriProp Nigeria <noreply@veripropnigeria.com>';
+const FROM_EMAIL = config.email?.from || 'VeriProp Naija Properties <noreply@veripropnigeria.com>';
 
 // ================================================================
 // CORE — Send email via Resend API
@@ -85,7 +85,7 @@ function baseTemplate(title, content) {
   <div class="header"><div class="logo">🏠 VeriProp <span>Nigeria</span></div><p style="margin:4px 0 0;color:#64748b;font-size:0.85rem">${title}</p></div>
   <div class="body">${content}</div>
   <div class="footer">
-    <p>VeriProp Nigeria — Nigeria's Most Trusted Property Marketplace</p>
+    <p>VeriProp Naija Properties — Nigeria's Most Trusted Property Marketplace</p>
     <p>This is a transactional email. You received it because you have a VeriProp account.</p>
   </div>
 </div></div></body></html>`;
@@ -95,10 +95,10 @@ function baseTemplate(title, content) {
 async function sendWelcomeEmail(user) {
   return sendEmail({
     to: user.email,
-    subject: '🏠 Welcome to VeriProp Nigeria!',
+    subject: '🏠 Welcome to VeriProp Naija Properties!',
     html: baseTemplate('Welcome to VeriProp', `
       <h2 style="margin:0 0 8px;color:#1e3a5f">Welcome, ${user.firstName}! 🎉</h2>
-      <p style="color:#475569;line-height:1.7">Your VeriProp Nigeria account has been created. You're one step closer to Nigeria's most trusted property marketplace.</p>
+      <p style="color:#475569;line-height:1.7">Your VeriProp Naija Properties account has been created. You're one step closer to Nigeria's most trusted property marketplace.</p>
       <p style="color:#475569;line-height:1.7"><strong>Next steps:</strong></p>
       <ol style="color:#475569;line-height:2">
         <li>Complete your identity verification (NIN + Document Verification)</li>

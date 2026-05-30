@@ -1,4 +1,4 @@
-# VeriProp Nigeria — Legal Disclaimers & Terms
+# VeriProp Naija Properties — Legal Disclaimers & Terms
 
 ## For use across: Website, App, Terms of Service, Transaction Pages
 
@@ -6,7 +6,7 @@
 
 ## 1. PLATFORM DISCLAIMER (Footer / About / Terms)
 
-> **VeriProp Nigeria is a technology marketplace platform that connects property seekers with property owners and licensed estate agents. VeriProp does not own, manage, or control any property listed on the platform. VeriProp is not a real estate agency, brokerage, financial institution, or legal advisory firm.**
+> **VeriProp Naija Properties is a technology marketplace platform that connects property seekers with property owners and licensed estate agents. VeriProp does not own, manage, or control any property listed on the platform. VeriProp is not a real estate agency, brokerage, financial institution, or legal advisory firm.**
 >
 > **All property listings are created by independent users who are solely responsible for the accuracy, legality, and completeness of their listing information including but not limited to property descriptions, pricing, images, ownership status, and title documentation.**
 >
@@ -68,7 +68,7 @@
 
 > **Limitation of Liability**
 >
-> To the maximum extent permitted by applicable Nigerian law, VeriProp Nigeria, its directors, officers, employees, affiliates, and technology providers shall not be liable for:
+> To the maximum extent permitted by applicable Nigerian law, VeriProp Naija Properties, its directors, officers, employees, affiliates, and technology providers shall not be liable for:
 >
 > a) Any indirect, incidental, special, consequential, or punitive damages arising from or related to the use of the platform
 >
@@ -163,9 +163,10 @@
 
 ## 10. INTELLECTUAL PROPERTY
 
-> All content, design, code, trademarks, and intellectual property on VeriProp Nigeria are the property of VeriProp Nigeria and its licensors. Users may not copy, reproduce, distribute, or create derivative works from any VeriProp content without express written permission. Property images and descriptions remain the intellectual property of their respective owners.
+> All content, design, code, trademarks, and intellectual property on VeriProp Naija Properties are the property of VeriProp Naija Properties and its licensors. Users may not copy, reproduce, distribute, or create derivative works from any VeriProp content without express written permission. Property images and descriptions remain the intellectual property of their respective owners.
 
 ---
 
 *Last updated: May 2026*
-*VeriProp Nigeria — Nigeria's Zero-Trust Property Marketplace*
+*RC-9580468*
+*VeriProp Naija Properties — Nigeria's Zero-Trust Property Marketplace*

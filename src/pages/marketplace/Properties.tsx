@@ -33,7 +33,7 @@ export default function Properties() {
     <div style={{ minHeight:'100vh', background:'#f8fafc', fontFamily:'Inter,sans-serif' }}>
       {/* Nav */}
       <nav style={{ background:'#1e3a5f', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <a href="/" style={{ color:'#fff', fontWeight:800, fontSize:'1.1rem', textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Nigeria</span></a>
+        <a href="/" style={{ color:'#fff', fontWeight:800, fontSize:'1.1rem', textDecoration:'none' }}>🏠 VeriProp <span style={{ color:'#f59e0b' }}>Naija</span></a>
         <div style={{ display:'flex', gap:'1rem', alignItems:'center' }}>
           <a href="/list-property" style={{ color:'#94a3b8', textDecoration:'none', fontSize:'0.875rem' }}>List Property</a>
           <a href="/login" style={{ background:'#f59e0b', color:'#1e3a5f', padding:'0.4rem 1rem', borderRadius:'0.5rem', fontWeight:700, textDecoration:'none', fontSize:'0.875rem' }}>Sign In</a>

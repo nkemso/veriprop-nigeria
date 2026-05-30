@@ -76,7 +76,14 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign In →'}
           </button>
         </form>
-        <div style={{ textAlign:'center', marginTop:'1.5rem', fontSize:'0.875rem', color:'#64748b' }}>
+        <div style={{ textAlign:'center', margin:'1.25rem 0 0.75rem', color:'#94a3b8', fontSize:'0.8rem' }}>— or —</div>
+
+        <a href="https://t.me/VeriPropNigeriaBot?start=login"
+          style={{ display:'block', width:'100%', padding:'0.75rem', background:'#0088cc', color:'#fff', border:'none', borderRadius:'0.75rem', fontWeight:700, fontSize:'0.9rem', textDecoration:'none', textAlign:'center', boxSizing:'border-box' }}>
+          ✈️ Sign in via Telegram
+        </a>
+
+        <div style={{ textAlign:'center', marginTop:'1.25rem', fontSize:'0.875rem', color:'#64748b' }}>
           Don&apos;t have an account?{' '}
           <a href="/register" style={{ color:'#1d4ed8', fontWeight:700, textDecoration:'none' }}>Register →</a>
         </div>

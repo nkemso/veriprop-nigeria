@@ -28,7 +28,7 @@ const PROPERTY_TEASERS = [
     headline: 'Your Family\u2019s Forever\nHome — Secured',
     sub: '2-of-3 multi-signature escrow. Funds only release when you approve.',
     badge: '📍 Maitama, Abuja FCT',
-    stats: [{ v: '3-Tier', l: 'KYC Guard' }, { v: '2-of-3', l: 'Multi-Sig' }],
+    stats: [{ v: '2-Step', l: 'KYC Guard' }, { v: '2-of-3', l: 'Multi-Sig' }],
     accent: '#10b981',
     bg: 'linear-gradient(160deg,#1a1a2e,#16213e,#0f3460)',
     images: [
@@ -43,7 +43,7 @@ const PROPERTY_TEASERS = [
     headline: 'Prime Locations for\nYour Growing Business',
     sub: 'AI-verified listings. Transparent pricing. Institutional-grade security.',
     badge: '📍 Lekki, Lagos Island',
-    stats: [{ v: '5%', l: 'Platform Fee' }, { v: '<2s', l: 'KYC Speed' }],
+    stats: [{ v: '2.5%', l: 'Platform Fee' }, { v: '<2s', l: 'KYC Speed' }],
     accent: '#3b82f6',
     bg: 'linear-gradient(160deg,#1e3c72,#2a5298,#1e3c72)',
     images: [
@@ -81,9 +81,8 @@ const VETPRO_DIALOGUE = [
     icon: '🔍',
     title: 'I Verify Every Identity.',
     lines: [
-      "Tier 1: NIN verification — your bank confirms you.",
-      "Tier 2: Government ID — NIN, Passport, or Driver's License.",
-      "Tier 3: Selfie Liveness — powered by Didit AI (sub-2 seconds).",
+      "Step 1: NIN verification — confirms your identity via NIMC.",
+      "Step 2: Document scan + Selfie — Didit AI verifies your face matches your ID in under 2 seconds.",
       "No anonymous users. No fake listings. Period.",
     ],
     accent: '#f59e0b',
@@ -401,7 +400,7 @@ export default function FinalOnboarding() {
 
       {/* Bottom trust */}
       <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-        {['🛡️ 3-Tier KYC', '🤳 Selfie Liveness', '🔐 Multi-Sig Escrow', '🤖 VetPro AI', '🆓 500 Free/mo'].map(b => (
+        {['🛡️ 2-Step KYC', '🤳 Didit AI Scan', '🔐 Multi-Sig Escrow', '🤖 VetPro AI', '🆓 500 Free/mo'].map(b => (
           <span key={b} style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.7rem' }}>{b}</span>
         ))}
       </div>
