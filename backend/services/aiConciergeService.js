@@ -97,44 +97,44 @@ async function callAI(prompt, systemPrompt, modelName) {
   }
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI_TIMEOUT')), 12000));
 
-    if (provider.format === 'gemini') {
-      const geminiUrl = `${provider.url}/models/${provider.model}:generateContent?key=${provider.key}`;
-      const res = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: systemPrompt + '\n\n' + prompt }] }],
-          generationConfig: { maxOutputTokens: 600, temperature: 0.8 },
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) return { text, model: modelName, tokens: text.length };
-    } else {
-      const res = await fetch(provider.url, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: provider.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt },
-          ],
-          max_tokens: 600,
-          temperature: 0.8,
-        }),
-      });
-      const data = await res.json();
-      clearTimeout(timeout);
-      const text = data.choices?.[0]?.message?.content;
-      if (text) return { text, model: modelName, tokens: data.usage?.total_tokens || 0 };
-    }
+    const fetchPromise = (async () => {
+      if (provider.format === 'gemini') {
+        const geminiUrl = provider.url + '/models/' + provider.model + ':generateContent?key=' + provider.key;
+        const res = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: systemPrompt + '\n\n' + prompt }] }],
+            generationConfig: { maxOutputTokens: 400, temperature: 0.8 },
+          }),
+        });
+        if (!res.ok) throw new Error('Gemini HTTP ' + res.status);
+        const data = await res.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text;
+      } else {
+        const res = await fetch(provider.url, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + provider.key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: provider.model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt },
+            ],
+            max_tokens: 400,
+            temperature: 0.8,
+          }),
+        });
+        if (!res.ok) throw new Error(modelName + ' HTTP ' + res.status);
+        const data = await res.json();
+        return data.choices?.[0]?.message?.content;
+      }
+    })();
+
+    const text = await Promise.race([fetchPromise, timeoutPromise]);
+    if (text) return { text, model: modelName, tokens: 0 };
   } catch (err) {
     console.error(`[AI/${modelName}] Error:`, err.message);
   }
