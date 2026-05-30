@@ -70,10 +70,13 @@ function selectModel(message, language) {
   // Fast simple queries → Groq (fastest, free)
   if (providers.groq.key) return 'groq';
 
-  // General queries → Gemini (fast, free, good quality)
+  // General queries → DeepSeek (reliable, key confirmed)
+  if (providers.deepseek.key) return 'deepseek';
+
+  // Gemini fallback (may have rate/IP issues)
   if (providers.gemini.key) return 'gemini';
 
-  // Analysis tasks → DeepSeek (best reasoning, but slower)
+  // Analysis tasks → DeepSeek
   const analysisKeywords = ['roi', 'calculate', 'compare', 'analysis', 'investment', 'legal', 'tax', 'yield', 'projection', 'forecast', 'valuation', 'cost', 'profit', 'worth'];
   if (analysisKeywords.some(k => lower.includes(k)) && providers.deepseek.key) return 'deepseek';
 
