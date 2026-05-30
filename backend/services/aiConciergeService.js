@@ -101,7 +101,10 @@ async function callAI(prompt, systemPrompt, modelName) {
 
     const fetchPromise = (async () => {
       if (provider.format === 'gemini') {
-        const geminiUrl = provider.url + '/models/' + provider.model + ':generateContent?key=' + provider.key;
+        const geminiModel = provider.model || 'gemini-2.0-flash';
+      const geminiKey = provider.key;
+      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + geminiModel + ':generateContent?key=' + geminiKey;
+      console.log('[AI/gemini] Calling:', geminiModel, 'key length:', (geminiKey || '').length);
         const res = await fetch(geminiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
