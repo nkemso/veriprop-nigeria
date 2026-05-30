@@ -107,7 +107,7 @@ async function callAI(prompt, systemPrompt, modelName) {
         const geminiModel = provider.model || 'gemini-2.0-flash';
       const geminiKey = provider.key;
       const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + geminiModel + ':generateContent?key=' + geminiKey;
-      console.log('[AI/gemini] Calling:', geminiModel, 'key length:', (geminiKey || '').length);
+
         const res = await fetch(geminiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -116,9 +116,11 @@ async function callAI(prompt, systemPrompt, modelName) {
             generationConfig: { maxOutputTokens: 400, temperature: 0.8 },
           }),
         });
-        if (!res.ok) throw new Error('Gemini HTTP ' + res.status);
         const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (data.error) throw new Error('Gemini: ' + (data.error.message || data.error.code));
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) throw new Error('Gemini: no text in response');
+        return text;
       } else {
         const res = await fetch(provider.url, {
           method: 'POST',
@@ -133,9 +135,11 @@ async function callAI(prompt, systemPrompt, modelName) {
             temperature: 0.8,
           }),
         });
-        if (!res.ok) throw new Error(modelName + ' HTTP ' + res.status);
         const data = await res.json();
-        return data.choices?.[0]?.message?.content;
+        if (data.error) throw new Error(modelName + ': ' + (data.error.message || data.error.code || JSON.stringify(data.error)));
+        const text = data.choices?.[0]?.message?.content;
+        if (!text) throw new Error(modelName + ': no text in response');
+        return text;
       }
     })();
 

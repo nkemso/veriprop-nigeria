@@ -178,43 +178,6 @@ try {
   app.use('/api/support', phase45.supportRouter);
   app.use('/api/notifications', phase45.notificationRouter);
 
-  // ── AI FETCH TEST ──────────────────────────────────────────
-  app.get('/api/v1/ai/test-fetch', async (req, res) => {
-    const results = {};
-    // Test DeepSeek
-    try {
-      const start = Date.now();
-      const r = await Promise.race([
-        fetch('https://api.deepseek.com/chat/completions', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + (process.env.DEEPSEEK_API_KEY || ''), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'user', content: 'Say hi in 5 words' }], max_tokens: 20 }),
-        }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000)),
-      ]);
-      const data = await r.json();
-      results.deepseek = { ok: true, ms: Date.now() - start, response: data.choices?.[0]?.message?.content || JSON.stringify(data).slice(0, 200) };
-    } catch (e) { results.deepseek = { ok: false, error: e.message }; }
-
-    // Test Gemini
-    try {
-      const start = Date.now();
-      const gemKey = process.env.GEMINI_API_KEY || '';
-      const r = await Promise.race([
-        fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + gemKey, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: 'Say hi in 5 words' }] }], generationConfig: { maxOutputTokens: 20 } }),
-        }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000)),
-      ]);
-      const data = await r.json();
-      results.gemini = { ok: true, ms: Date.now() - start, response: data.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(data).slice(0, 200) };
-    } catch (e) { results.gemini = { ok: false, error: e.message }; }
-
-    res.json(results);
-  });
-
   // ── AI CONCIERGE (Premium Multi-Model Suite) ─────────────
   app.post('/api/v1/ai/chat', express.json(), async (req, res) => {
     try {
