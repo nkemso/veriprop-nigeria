@@ -34,7 +34,7 @@ function getProviders() {
       format: 'openai',
     },
     gemini: {
-      url: `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.0-flash'}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      url: 'https://generativelanguage.googleapis.com/v1beta',
       key: process.env.GEMINI_API_KEY,
       model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
       strength: 'creative',
@@ -101,7 +101,8 @@ async function callAI(prompt, systemPrompt, modelName) {
     const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
     if (provider.format === 'gemini') {
-      const res = await fetch(provider.url, {
+      const geminiUrl = `${provider.url}/models/${provider.model}:generateContent?key=${provider.key}`;
+      const res = await fetch(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
