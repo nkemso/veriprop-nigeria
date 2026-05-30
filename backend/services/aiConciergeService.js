@@ -64,19 +64,21 @@ function selectModel(message, language) {
   const providers = getProviders();
   const lower = message.toLowerCase();
 
-  // Language tasks → Gemini (best at creative/multilingual)
+  // Language tasks → Gemini (best at creative/multilingual, fast)
   if (language !== 'english' && providers.gemini.key) return 'gemini';
 
-  // Analysis tasks → DeepSeek (best reasoning)
+  // Fast simple queries → Groq (fastest, free)
+  if (providers.groq.key) return 'groq';
+
+  // General queries → Gemini (fast, free, good quality)
+  if (providers.gemini.key) return 'gemini';
+
+  // Analysis tasks → DeepSeek (best reasoning, but slower)
   const analysisKeywords = ['roi', 'calculate', 'compare', 'analysis', 'investment', 'legal', 'tax', 'yield', 'projection', 'forecast', 'valuation', 'cost', 'profit', 'worth'];
   if (analysisKeywords.some(k => lower.includes(k)) && providers.deepseek.key) return 'deepseek';
 
-  // Fast simple queries → Groq (fastest)
-  if (providers.groq.key) return 'groq';
-
   // Fallback chain
   if (providers.deepseek.key) return 'deepseek';
-  if (providers.gemini.key) return 'gemini';
   if (providers.qwen.key) return 'qwen';
 
   return 'local';
@@ -95,6 +97,9 @@ async function callAI(prompt, systemPrompt, modelName) {
   }
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
     if (provider.format === 'gemini') {
       const res = await fetch(provider.url, {
         method: 'POST',
@@ -103,7 +108,9 @@ async function callAI(prompt, systemPrompt, modelName) {
           contents: [{ parts: [{ text: systemPrompt + '\n\n' + prompt }] }],
           generationConfig: { maxOutputTokens: 600, temperature: 0.8 },
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const data = await res.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) return { text, model: modelName, tokens: text.length };
@@ -111,6 +118,7 @@ async function callAI(prompt, systemPrompt, modelName) {
       const res = await fetch(provider.url, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${provider.key}`, 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           model: provider.model,
           messages: [
@@ -122,6 +130,7 @@ async function callAI(prompt, systemPrompt, modelName) {
         }),
       });
       const data = await res.json();
+      clearTimeout(timeout);
       const text = data.choices?.[0]?.message?.content;
       if (text) return { text, model: modelName, tokens: data.usage?.total_tokens || 0 };
     }
