@@ -401,20 +401,45 @@ RULES:
 async function handleMessage(userMessage, options = {}) {
   const { role = 'buyer', userId, language: forceLang } = options;
 
+  // Master timeout — entire handler must complete in 25 seconds
+  return Promise.race([
+    _handleMessage(userMessage, { role, userId, language: forceLang }),
+    new Promise((resolve) => setTimeout(() => resolve({
+      response: generateLocalResponse(''),
+      model: 'timeout_fallback',
+      language: forceLang || 'english',
+    }), 25000)),
+  ]);
+}
+
+async function _handleMessage(userMessage, options = {}) {
+  const { role = 'buyer', userId, language: forceLang } = options;
+
   // Detect language
   const detectedLang = forceLang || detectLanguage(userMessage);
 
   // Extract search intent
   const intent = extractIntent(userMessage);
 
-  // Search real data
+  // Search real data (with timeout protection)
   let properties = [];
   if (intent.isSearch) {
-    properties = await searchProperties(intent);
+    try {
+      properties = await Promise.race([
+        searchProperties(intent),
+        new Promise(r => setTimeout(() => r([]), 5000)),
+      ]);
+    } catch { properties = []; }
   }
 
-  // Get market stats
-  const stats = await getMarketStats(intent.state);
+  // Get market stats (with timeout protection)
+  let stats = { total: 0, avgPrice: 0 };
+  try {
+    stats = await Promise.race([
+      getMarketStats(intent.state),
+      new Promise(r => setTimeout(() => r({ total: 0, avgPrice: 0 }), 5000)),
+    ]);
+  } catch {}
 
   // Build context
   const systemPrompt = buildSystemPrompt(role, detectedLang, stats);
