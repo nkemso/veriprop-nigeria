@@ -38,6 +38,11 @@ export default function AdminDashboard() {
   const [disputes, setDisputes] = useState<any[]>([])
   const [flagged, setFlagged] = useState<any[]>([])
   const [logs, setLogs] = useState<any[]>([])
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [escrows, setEscrows] = useState<any[]>([])
+  const [txnFilter, setTxnFilter] = useState('all')
+  const [escrowFilter, setEscrowFilter] = useState('all')
+  const [feePreview, setFeePreview] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [search, setSearch] = useState('')
@@ -55,13 +60,17 @@ export default function AdminDashboard() {
       fetch(`${API}/api/v1/admin/disputes`, { headers: h }).then(r => r.json()),
       fetch(`${API}/api/v1/chat/admin/flagged`, { headers: h }).then(r => r.json()),
       fetch(`${API}/api/v1/admin/audit?limit=50`, { headers: h }).then(r => r.json()),
-    ]).then(([s, u, p, d, f, a]) => {
+      fetch(`${API}/api/v1/transactions?limit=50`, { headers: h }).then(r => r.json()),
+      fetch(`${API}/api/v1/escrow?limit=50`, { headers: h }).then(r => r.json()).catch(() => ({ escrows: [] })),
+    ]).then(([s, u, p, d, f, a, t, e]) => {
       setStats(s.stats || {})
       setUsers(u.users || [])
       setProperties(p.data || [])
       setDisputes(d.disputes || [])
       setFlagged(f.flagged || [])
       setLogs(a.logs || [])
+      setTransactions(t.data || t.transactions || [])
+      setEscrows(e.data || e.escrows || [])
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [token])
@@ -85,6 +94,23 @@ export default function AdminDashboard() {
   const changeRole = async (id: string, role: string) => {
     const data = await action(`/api/v1/admin/users/${id}/role`, 'PATCH', { role })
     if (data.success) setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
+  }
+
+  const releaseEscrow = async (id: string) => {
+    if (!confirm('Release escrow funds? This will transfer money to the landlord/agent.')) return
+    const data = await action(`/api/v1/payments/escrow/${id}/release`, 'POST')
+    if (data.success) setEscrows(prev => prev.map(e => e.id === id ? { ...e, status: 'released' } : e))
+  }
+
+  const refundEscrow = async (id: string, reference: string) => {
+    if (!confirm('Refund this escrow to the buyer?')) return
+    const data = await action('/api/v1/payments/refund', 'POST', { reference })
+    if (data.success) setEscrows(prev => prev.map(e => e.id === id ? { ...e, status: 'refunded' } : e))
+  }
+
+  const previewFees = async (price: number, hasAgent: boolean, agentRate: number) => {
+    const data = await action('/api/v1/payments/calculate-fees', 'POST', { propertyPrice: price, hasAgent, agentRate })
+    if (data.success) setFeePreview(data.fees)
   }
 
   const verifyUser = async (id: string, tier: string) => {
@@ -524,13 +550,203 @@ fetch('/api/v1/admin/users/USER_ID/role', {
                 </div>
               )}
 
-              {/* Other tabs */}
-              {['transactions', 'escrow'].includes(tab) && (
-                <div style={{ textAlign: 'center', padding: '3rem', background: '#161b22', borderRadius: '0.75rem', border: '1px solid #21262d', color: '#6e7681' }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔐</div>
-                  <h3 style={{ color: '#f0f6fc', fontWeight: 700 }}>{tab === 'transactions' ? 'Transaction Management' : 'Escrow Management'}</h3>
-                  <p>Advanced {tab} management coming in the next release.</p>
-                  <p style={{ fontSize: '0.8rem' }}>Use the backend API for now: <code style={{ color: '#60a5fa' }}>/api/v1/{tab}</code></p>
+              {/* ── TRANSACTIONS ── */}
+              {tab === 'transactions' && (
+                <div>
+                  {/* Fee Calculator */}
+                  <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: '0.75rem', padding: '1.25rem', marginBottom: '1rem' }}>
+                    <h3 style={{ margin: '0 0 1rem', fontWeight: 700, color: '#f0f6fc', fontSize: '0.9rem' }}>💰 Fee Calculator</h3>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <div>
+                        <label style={{ display: 'block', color: '#6e7681', fontSize: '0.7rem', marginBottom: '0.25rem' }}>Property Price (₦)</label>
+                        <input id="feePrice" type="number" defaultValue={10000000} style={{ background: '#0d1117', border: '1px solid #30363d', color: '#f0f6fc', padding: '0.4rem 0.6rem', borderRadius: '0.375rem', fontSize: '0.8rem', width: 130 }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', color: '#6e7681', fontSize: '0.7rem', marginBottom: '0.25rem' }}>Agent Rate</label>
+                        <select id="feeAgent" defaultValue="0.05" style={{ background: '#0d1117', border: '1px solid #30363d', color: '#f0f6fc', padding: '0.4rem 0.6rem', borderRadius: '0.375rem', fontSize: '0.8rem' }}>
+                          <option value="0">No Agent (Direct)</option>
+                          <option value="0.05">5%</option>
+                          <option value="0.08">8%</option>
+                          <option value="0.10">10%</option>
+                        </select>
+                      </div>
+                      <button onClick={() => {
+                        const price = parseFloat((document.getElementById('feePrice') as HTMLInputElement)?.value || '10000000')
+                        const rate = parseFloat((document.getElementById('feeAgent') as HTMLSelectElement)?.value || '0.05')
+                        previewFees(price, rate > 0, rate)
+                      }} style={{ background: '#1d4ed8', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: '0.375rem', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
+                        Calculate →
+                      </button>
+                    </div>
+                    {feePreview && (
+                      <div style={{ marginTop: '1rem', background: '#0d1117', borderRadius: '0.5rem', padding: '1rem' }}>
+                        {Object.entries(feePreview.breakdown || {}).map(([k, v]) => (
+                          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.3rem 0', borderBottom: k === '---' ? '1px solid #21262d' : 'none', fontSize: '0.8rem' }}>
+                            <span style={{ color: '#8b949e' }}>{k === '---' ? '' : k}</span>
+                            <span style={{ color: String(v).includes('Total') || String(k).includes('Total') ? '#f59e0b' : String(k).includes('VeriProp') ? '#10b981' : '#f0f6fc', fontWeight: String(k).includes('Total') || String(k).includes('VeriProp') ? 700 : 400 }}>{String(v) === '---' ? '' : String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Filter */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                    {['all', 'initiated', 'paid', 'escrow_funded', 'completed', 'cancelled', 'disputed'].map(f => (
+                      <button key={f} onClick={() => setTxnFilter(f)}
+                        style={{ background: txnFilter === f ? '#1d4ed8' : '#161b22', color: txnFilter === f ? '#fff' : '#8b949e', border: '1px solid #21262d', padding: '0.3rem 0.75rem', borderRadius: '999px', fontSize: '0.7rem', cursor: 'pointer', textTransform: 'capitalize' }}>
+                        {f === 'all' ? 'All' : f.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Transaction List */}
+                  <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: '0.75rem', overflow: 'hidden' }}>
+                    <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #21262d' }}>
+                      <h3 style={{ margin: 0, fontWeight: 700, color: '#f0f6fc' }}>Transactions ({transactions.filter(t => txnFilter === 'all' || t.status === txnFilter).length})</h3>
+                    </div>
+                    {transactions.filter(t => txnFilter === 'all' || t.status === txnFilter).length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '3rem', color: '#6e7681' }}>No transactions {txnFilter !== 'all' ? `with status "${txnFilter}"` : 'yet'}</div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                          <thead>
+                            <tr style={{ background: '#0d1117' }}>
+                              {['Property', 'Amount', 'Buyer', 'Seller', 'Status', 'Date', 'Actions'].map(h => (
+                                <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', color: '#6e7681', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {transactions.filter(t => txnFilter === 'all' || t.status === txnFilter).map((t: any) => {
+                              const statusColors: Record<string,string> = { initiated: '#f59e0b', paid: '#3b82f6', escrow_funded: '#8b5cf6', completed: '#10b981', cancelled: '#ef4444', disputed: '#ef4444' }
+                              return (
+                                <tr key={t.id} style={{ borderTop: '1px solid #21262d' }}>
+                                  <td style={{ padding: '0.75rem 1rem', color: '#f0f6fc', fontWeight: 600, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.property?.title || t.propertyId?.slice(-8)}</td>
+                                  <td style={{ padding: '0.75rem 1rem', color: '#10b981', fontWeight: 700 }}>₦{(t.amount || 0).toLocaleString()}</td>
+                                  <td style={{ padding: '0.75rem 1rem', color: '#8b949e' }}>{t.buyer?.firstName || 'N/A'} {t.buyer?.lastName || ''}</td>
+                                  <td style={{ padding: '0.75rem 1rem', color: '#8b949e' }}>{t.seller?.firstName || 'N/A'} {t.seller?.lastName || ''}</td>
+                                  <td style={{ padding: '0.75rem 1rem' }}>
+                                    <span style={{ background: (statusColors[t.status] || '#6e7681') + '20', color: statusColors[t.status] || '#6e7681', padding: '0.2rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 600, textTransform: 'capitalize' }}>{t.status?.replace('_', ' ')}</span>
+                                  </td>
+                                  <td style={{ padding: '0.75rem 1rem', color: '#6e7681' }}>{new Date(t.createdAt).toLocaleDateString('en-NG')}</td>
+                                  <td style={{ padding: '0.75rem 1rem' }}>
+                                    <span style={{ color: '#60a5fa', fontSize: '0.7rem', cursor: 'pointer' }} onClick={() => alert(JSON.stringify(t, null, 2))}>View</span>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── ESCROW ── */}
+              {tab === 'escrow' && (
+                <div>
+                  {/* Filter */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                    {['all', 'initiated', 'funded', 'release_requested', 'released', 'disputed', 'refunded'].map(f => (
+                      <button key={f} onClick={() => setEscrowFilter(f)}
+                        style={{ background: escrowFilter === f ? '#8b5cf6' : '#161b22', color: escrowFilter === f ? '#fff' : '#8b949e', border: '1px solid #21262d', padding: '0.3rem 0.75rem', borderRadius: '999px', fontSize: '0.7rem', cursor: 'pointer', textTransform: 'capitalize' }}>
+                        {f === 'all' ? 'All' : f.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Escrow Summary Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                    {[
+                      { label: 'Total Held', value: escrows.filter(e => e.status === 'funded').reduce((s: number, e: any) => s + (e.totalDeposited || 0), 0), color: '#8b5cf6', icon: '🔐' },
+                      { label: 'Active', value: escrows.filter(e => ['funded', 'release_requested'].includes(e.status)).length, color: '#3b82f6', icon: '⏳', isCount: true },
+                      { label: 'Released', value: escrows.filter(e => e.status === 'released').length, color: '#10b981', icon: '✅', isCount: true },
+                      { label: 'Disputed', value: escrows.filter(e => e.status === 'disputed').length, color: '#ef4444', icon: '⚠️', isCount: true },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: '0.75rem', padding: '1rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.5rem' }}>{s.icon}</div>
+                        <div style={{ color: s.color, fontWeight: 900, fontSize: s.isCount ? '1.5rem' : '1.1rem', margin: '0.25rem 0' }}>
+                          {s.isCount ? s.value : `₦${(s.value as number).toLocaleString()}`}
+                        </div>
+                        <div style={{ color: '#6e7681', fontSize: '0.7rem' }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Escrow List */}
+                  <div style={{ background: '#161b22', border: '1px solid #21262d', borderRadius: '0.75rem', overflow: 'hidden' }}>
+                    <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #21262d' }}>
+                      <h3 style={{ margin: 0, fontWeight: 700, color: '#f0f6fc' }}>Escrow Accounts ({escrows.filter(e => escrowFilter === 'all' || e.status === escrowFilter).length})</h3>
+                    </div>
+                    {escrows.filter(e => escrowFilter === 'all' || e.status === escrowFilter).length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '3rem', color: '#6e7681' }}>No escrows {escrowFilter !== 'all' ? `with status "${escrowFilter}"` : 'yet'}</div>
+                    ) : escrows.filter(e => escrowFilter === 'all' || e.status === escrowFilter).map((e: any) => {
+                      const statusColors: Record<string,string> = { initiated: '#f59e0b', funded: '#8b5cf6', release_requested: '#3b82f6', released: '#10b981', disputed: '#ef4444', refunded: '#6e7681' }
+                      return (
+                        <div key={e.id} style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #21262d' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                            <div>
+                              <div style={{ fontWeight: 700, color: '#f0f6fc', fontSize: '0.9rem' }}>Escrow {e.id?.slice(-8).toUpperCase()}</div>
+                              <div style={{ color: '#6e7681', fontSize: '0.75rem' }}>{new Date(e.createdAt || e.fundedAt).toLocaleDateString('en-NG')}</div>
+                            </div>
+                            <span style={{ background: (statusColors[e.status] || '#6e7681') + '20', color: statusColors[e.status] || '#6e7681', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'capitalize' }}>
+                              {e.status?.replace('_', ' ')}
+                            </span>
+                          </div>
+
+                          {/* Amount breakdown */}
+                          <div style={{ background: '#0d1117', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '0.75rem', fontSize: '0.8rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2rem 0' }}>
+                              <span style={{ color: '#8b949e' }}>Total Deposited</span>
+                              <span style={{ color: '#f0f6fc', fontWeight: 700 }}>₦{(e.totalDeposited || 0).toLocaleString()}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2rem 0' }}>
+                              <span style={{ color: '#8b949e' }}>Seller Receives</span>
+                              <span style={{ color: '#10b981', fontWeight: 600 }}>₦{(e.netSellerAmount || 0).toLocaleString()}</span>
+                            </div>
+                            {e.agentCommission > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2rem 0' }}>
+                                <span style={{ color: '#8b949e' }}>Agent Commission</span>
+                                <span style={{ color: '#60a5fa' }}>₦{(e.agentCommission || 0).toLocaleString()}</span>
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2rem 0' }}>
+                              <span style={{ color: '#8b949e' }}>Platform Fee</span>
+                              <span style={{ color: '#f59e0b' }}>₦{(e.platformFee || 0).toLocaleString()}</span>
+                            </div>
+                            {e.vatAmount > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2rem 0' }}>
+                                <span style={{ color: '#8b949e' }}>VAT (FIRS)</span>
+                                <span style={{ color: '#6e7681' }}>₦{(e.vatAmount || 0).toLocaleString()}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Action buttons */}
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {['funded', 'release_requested'].includes(e.status) && (
+                              <button onClick={() => releaseEscrow(e.id)}
+                                style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', padding: '0.4rem 1rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>
+                                ✅ Release Funds
+                              </button>
+                            )}
+                            {['funded', 'disputed'].includes(e.status) && e.paymentReference && (
+                              <button onClick={() => refundEscrow(e.id, e.paymentReference)}
+                                style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '0.4rem 1rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>
+                                ↩️ Refund Buyer
+                              </button>
+                            )}
+                            <button onClick={() => alert(JSON.stringify(e, null, 2))}
+                              style={{ background: '#0d1117', color: '#60a5fa', border: '1px solid #30363d', padding: '0.4rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.7rem' }}>
+                              View Details
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </>
