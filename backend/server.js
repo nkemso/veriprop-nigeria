@@ -178,7 +178,7 @@ try {
   app.use('/api/support', phase45.supportRouter);
   app.use('/api/notifications', phase45.notificationRouter);
 
-  // ── AI CONCIERGE (Real data, dynamic, multilingual) ──────
+  // ── AI CONCIERGE (Premium Multi-Model Suite) ─────────────
   app.post('/api/v1/ai/chat', express.json(), async (req, res) => {
     try {
       const concierge = require('./services/aiConciergeService');
@@ -186,23 +186,32 @@ try {
 
       if (!message) return res.status(400).json({ success: false, message: 'Message required' });
 
-      // Extract user ID from auth if available
       let userId = null;
       try {
-        const token = req.headers.authorization?.replace('Bearer ', '');
-        if (token) {
+        const authToken = req.headers.authorization?.replace('Bearer ', '');
+        if (authToken) {
           const jwt = require('jsonwebtoken');
-          const decoded = jwt.verify(token, config.jwt.secret);
+          const decoded = jwt.verify(authToken, config.jwt.secret);
           userId = decoded.id;
         }
       } catch {}
 
-      const result = await concierge.handleMessage(message, { role, userId, language });
-
+      const result = await concierge.handleMessage(message, { role: role || 'buyer', userId, language });
       res.json({ success: true, ...result });
     } catch (err) {
-      console.error('[AI Chat]', err.message);
-      res.status(500).json({ success: false, message: 'AI concierge error' });
+      console.error('[AI Chat] Error:', err.message);
+      res.status(500).json({ success: false, message: 'AI service temporarily unavailable. Please try again.' });
+    }
+  });
+
+  // AI health/models check
+  app.get('/api/v1/ai/models', async (req, res) => {
+    try {
+      const concierge = require('./services/aiConciergeService');
+      const models = await concierge.testAI();
+      res.json({ success: true, models });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
     }
   });
 
