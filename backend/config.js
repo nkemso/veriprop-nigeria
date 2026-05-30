@@ -112,6 +112,15 @@ const config = {
       model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
     },
 
+    // ── OPENROUTER ─────────────────────────────────
+    // FREE forever, 11+ models, OpenAI-compatible
+    // Get key: openrouter.ai
+    openrouter: {
+      apiKey: process.env.OPENROUTER_API_KEY,
+      model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+      baseUrl: 'https://openrouter.ai/api/v1',
+    },
+
     local: {
       enabled: true,
     },

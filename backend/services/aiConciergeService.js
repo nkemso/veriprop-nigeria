@@ -54,6 +54,13 @@ function getProviders() {
       strength: 'volume',
       format: 'openai',
     },
+    openrouter: {
+      url: 'https://openrouter.ai/api/v1/chat/completions',
+      key: process.env.OPENROUTER_API_KEY,
+      model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+      strength: 'variety',
+      format: 'openai',
+    },
   };
 }
 
@@ -70,8 +77,11 @@ function selectModel(message, language) {
   // Fast simple queries → Groq (fastest, free)
   if (providers.groq.key) return 'groq';
 
-  // General queries → DeepSeek (reliable, key confirmed)
+  // General queries — fallback chain
   if (providers.deepseek.key) return 'deepseek';
+
+  // OpenRouter — free models variety
+  if (providers.openrouter.key) return 'openrouter';
 
   // Gemini fallback (may have rate/IP issues)
   if (providers.gemini.key) return 'gemini';
@@ -95,7 +105,7 @@ async function callAI(prompt, systemPrompt, modelName) {
   const providers = getProviders();
   
   // Try the selected model first, then fallback chain
-  const tryOrder = [modelName, 'groq', 'deepseek', 'gemini', 'qwen'].filter((v, i, a) => a.indexOf(v) === i);
+  const tryOrder = [modelName, 'groq', 'openrouter', 'gemini', 'deepseek', 'qwen'].filter((v, i, a) => a.indexOf(v) === i);
   
   for (const name of tryOrder) {
     const provider = providers[name];
@@ -501,6 +511,7 @@ async function testAI() {
   for (const [name, p] of Object.entries(providers)) {
     results[name] = { available: !!p.key, model: p.model, strength: p.strength };
   }
+  // Note: OpenRouter uses :free suffix for free models
   return results;
 }
 
