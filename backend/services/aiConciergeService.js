@@ -93,73 +93,66 @@ function selectModel(message, language) {
 // ================================================================
 async function callAI(prompt, systemPrompt, modelName) {
   const providers = getProviders();
-  const provider = providers[modelName];
+  
+  // Try the selected model first, then fallback chain
+  const tryOrder = [modelName, 'groq', 'deepseek', 'gemini', 'qwen'].filter((v, i, a) => a.indexOf(v) === i);
+  
+  for (const name of tryOrder) {
+    const provider = providers[name];
+    if (!provider?.key) continue;
 
-  if (!provider?.key) {
-    return { text: generateLocalResponse(prompt), model: 'local', tokens: 0 };
-  }
-
-  try {
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI_TIMEOUT')), 8000));
-
-    const fetchPromise = (async () => {
-      if (provider.format === 'gemini') {
-        const geminiModel = provider.model || 'gemini-2.0-flash';
-      const geminiKey = provider.key;
-      const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + geminiModel + ':generateContent?key=' + geminiKey;
-
-        const res = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: systemPrompt + '\n\n' + prompt }] }],
-            generationConfig: { maxOutputTokens: 400, temperature: 0.8 },
-          }),
-        });
-        const data = await res.json();
-        if (data.error) throw new Error('Gemini: ' + (data.error.message || data.error.code));
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error('Gemini: no text in response');
-        return text;
-      } else {
-        const res = await fetch(provider.url, {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + provider.key, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: provider.model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: prompt },
-            ],
-            max_tokens: 400,
-            temperature: 0.8,
-          }),
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(modelName + ': ' + (data.error.message || data.error.code || JSON.stringify(data.error)));
-        const text = data.choices?.[0]?.message?.content;
-        if (!text) throw new Error(modelName + ': no text in response');
-        return text;
+    try {
+      const result = await Promise.race([
+        _fetchAI(provider, name, prompt, systemPrompt),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+      ]);
+      if (result) {
+        console.log('[AI] Success with', name);
+        return { text: result, model: name, tokens: 0 };
       }
-    })();
-
-    const text = await Promise.race([fetchPromise, timeoutPromise]);
-    if (text) return { text, model: modelName, tokens: 0 };
-  } catch (err) {
-    console.error(`[AI/${modelName}] Error:`, err.message);
-    // Fast fallback — don't retry same model
-  }
-
-  // Fallback to next provider
-  const fallbackOrder = ['groq', 'deepseek', 'gemini', 'qwen'];
-  for (const fb of fallbackOrder) {
-    if (fb !== modelName && providers[fb]?.key) {
-      console.log(`[AI] Falling back from ${modelName} to ${fb}`);
-      return callAI(prompt, systemPrompt, fb);
+    } catch (err) {
+      console.error('[AI/' + name + ']', err.message);
+      continue; // Try next provider
     }
   }
 
+  // All providers failed — use smart local fallback
+  console.log('[AI] All providers failed, using local fallback');
   return { text: generateLocalResponse(prompt), model: 'local', tokens: 0 };
+}
+
+async function _fetchAI(provider, name, prompt, systemPrompt) {
+  if (provider.format === 'gemini') {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + (provider.model || 'gemini-2.0-flash') + ':generateContent?key=' + provider.key;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: systemPrompt + '\n\n' + prompt }] }],
+        generationConfig: { maxOutputTokens: 400, temperature: 0.8 },
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Gemini error');
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } else {
+    const res = await fetch(provider.url, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + provider.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: provider.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 400,
+        temperature: 0.8,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || name + ' error');
+    return data.choices?.[0]?.message?.content || null;
+  }
 }
 
 
